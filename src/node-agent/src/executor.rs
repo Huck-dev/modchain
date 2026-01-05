@@ -173,7 +173,7 @@ impl JobExecutor {
             ..Default::default()
         };
 
-        let container_name = format!("modchain-{}", job.id);
+        let container_name = format!("rhizos-{}", job.id);
         let container = self.docker
             .create_container(
                 Some(CreateContainerOptions::<String> { name: container_name.clone(), platform: None }),

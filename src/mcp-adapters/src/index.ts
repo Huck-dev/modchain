@@ -1,5 +1,5 @@
 /**
- * Modchain MCP Adapters
+ * RhizOS MCP Adapters
  *
  * Hardware abstraction layers that enable compute jobs to run on different hardware.
  * Each adapter handles a specific type of workload (LLM inference, image generation, etc.)
@@ -61,7 +61,7 @@ registerAdapter(new LlmInferenceAdapter());
 
 // Main entry point when run directly
 if (import.meta.url.endsWith(process.argv[1]?.replace(/\\/g, '/') || '')) {
-  console.log('Modchain MCP Adapters');
+  console.log('RhizOS MCP Adapters');
   console.log('=====================');
   console.log('');
   console.log('Available adapters:');

@@ -39,7 +39,7 @@ function App() {
               <Server size={20} style={{ color: 'var(--neon-cyan)' }} />
             </div>
             <GlitchText
-              text="MODCHAIN"
+              text="RHIZOS"
               as="h1"
               className="glitch-hover"
             />

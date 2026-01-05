@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Modchain",
+  "productName": "RhizOS",
   "version": "0.1.0",
-  "identifier": "com.modchain.desktop",
+  "identifier": "com.rhizos.cloud",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "MODCHAIN // NEURAL NETWORK",
+        "title": "RHIZOS // DECENTRALIZED COMPUTE",
         "width": 1400,
         "height": 900,
         "minWidth": 1000,
@@ -45,7 +45,7 @@
     ],
     "resources": [],
     "externalBin": [
-      "../../../node-agent/target/release/modchain-node"
+      "../../../node-agent/target/release/rhizos-node"
     ],
     "windows": {
       "certificateThumbprint": null,
@@ -70,7 +70,7 @@
       "scope": [
         {
           "name": "node-agent",
-          "cmd": "../../../node-agent/target/release/modchain-node",
+          "cmd": "../../../node-agent/target/release/rhizos-node",
           "args": true
         }
       ]

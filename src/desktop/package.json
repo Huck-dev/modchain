@@ -1,5 +1,5 @@
 {
-  "name": "@modchain/desktop",
+  "name": "@rhizos-cloud/desktop",
   "version": "0.1.0",
   "type": "module",
   "scripts": {

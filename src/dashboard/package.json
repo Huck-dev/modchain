@@ -1,5 +1,5 @@
 {
-  "name": "@modchain/dashboard",
+  "name": "@rhizos-cloud/dashboard",
   "version": "0.1.0",
   "type": "module",
   "scripts": {

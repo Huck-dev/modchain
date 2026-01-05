@@ -1,5 +1,5 @@
 /**
- * Modchain Capability Schema
+ * RhizOS Capability Schema
  *
  * Defines what a node can do and what a job requires.
  * This is the core contract between nodes, orchestrator, and clients.

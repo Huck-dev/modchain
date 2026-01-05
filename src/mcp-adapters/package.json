@@ -1,7 +1,7 @@
 {
-  "name": "@modchain/mcp-adapters",
+  "name": "@rhizos-cloud/mcp-adapters",
   "version": "0.1.0",
-  "description": "Modchain MCP Adapters - Hardware abstraction layers for compute jobs",
+  "description": "RhizOS MCP Adapters - Hardware abstraction layers for compute jobs",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "start": "node dist/index.js",
     "test": "vitest"
   },
-  "keywords": ["modchain", "mcp", "adapters", "compute"],
+  "keywords": ["rhizos", "mcp", "adapters", "compute"],
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

@@ -1,7 +1,7 @@
 /**
  * Base Adapter Class
  *
- * Abstract base class for all Modchain MCP adapters.
+ * Abstract base class for all RhizOS MCP adapters.
  * Provides common functionality and defines the adapter interface.
  */
 

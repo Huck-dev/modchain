@@ -152,7 +152,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Modchain Dashboard</h1>
+        <h1>RhizOS Dashboard</h1>
         <div className={`status-badge ${connected ? 'online' : 'offline'}`}>
           <span className={`status-dot ${connected ? 'online' : 'offline'}`}></span>
           {connected ? 'Connected' : 'Disconnected'}

@@ -1,7 +1,7 @@
 /**
- * Modchain Orchestrator
+ * RhizOS Orchestrator
  *
- * Central coordination service for the Modchain compute network.
+ * Central coordination service for the RhizOS compute network.
  * Handles node registration, job dispatch, and client API.
  */
 
@@ -310,7 +310,7 @@ wss.on('connection', (ws: WebSocket) => {
 
 server.listen(PORT, () => {
   console.log('========================================');
-  console.log('  Modchain Orchestrator v0.1.0');
+  console.log('  RhizOS Orchestrator v0.1.0');
   console.log('========================================');
   console.log(`  HTTP API:    http://localhost:${PORT}`);
   console.log(`  WebSocket:   ws://localhost:${PORT}${WS_PATH}`);

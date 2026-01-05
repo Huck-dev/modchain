@@ -1,5 +1,5 @@
 /**
- * Modchain Orchestrator Types
+ * RhizOS Orchestrator Types
  *
  * Core type definitions shared across the orchestrator.
  */

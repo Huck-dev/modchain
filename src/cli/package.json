@@ -1,17 +1,17 @@
 {
-  "name": "@modchain/cli",
+  "name": "@rhizos-cloud/cli",
   "version": "0.1.0",
-  "description": "Modchain CLI - Submit jobs and monitor the network",
+  "description": "RhizOS CLI - Submit jobs and monitor the network",
   "type": "module",
   "bin": {
-    "modchain": "./dist/index.js"
+    "rhizos": "./dist/index.js"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },
-  "keywords": ["modchain", "cli"],
+  "keywords": ["rhizos", "cli"],
   "license": "MIT",
   "dependencies": {
     "commander": "^13.0.0",

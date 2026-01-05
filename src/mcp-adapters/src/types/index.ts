@@ -1,7 +1,7 @@
 /**
  * MCP Adapter Types
  *
- * Type definitions for Modchain MCP adapters.
+ * Type definitions for RhizOS MCP adapters.
  */
 
 import { z } from 'zod';

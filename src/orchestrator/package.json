@@ -1,7 +1,7 @@
 {
-  "name": "@modchain/orchestrator",
+  "name": "@rhizos-cloud/orchestrator",
   "version": "0.1.0",
-  "description": "Modchain Orchestrator - Coordinates compute jobs across the network",
+  "description": "RhizOS Orchestrator - Coordinates compute jobs across the network",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "start": "node dist/index.js",
     "test": "vitest"
   },
-  "keywords": ["modchain", "compute", "orchestrator", "distributed"],
+  "keywords": ["rhizos", "compute", "orchestrator", "distributed"],
   "author": "Huck-dev",
   "license": "MIT",
   "dependencies": {

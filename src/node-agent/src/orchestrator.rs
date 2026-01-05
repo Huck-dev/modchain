@@ -1,6 +1,6 @@
 //! Orchestrator connection module
 //!
-//! Handles communication with the Modchain orchestrator service.
+//! Handles communication with the RhizOS orchestrator service.
 //! Uses WebSocket for real-time job assignment and status updates.
 
 use anyhow::Result;

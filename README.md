@@ -1,14 +1,14 @@
-# Modchain
+# RhizOS Cloud
 
 **Decentralized compute network with MCP-powered hardware abstraction**
 
-Modchain is a peer-to-peer compute marketplace where users can rent GPU/CPU resources and providers can monetize idle hardware. Built on the Model Context Protocol (MCP) for hardware-agnostic execution.
+RhizOS is a peer-to-peer compute marketplace where users can rent GPU/CPU resources and providers can monetize idle hardware. Built on the Model Context Protocol (MCP) for hardware-agnostic execution.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         MODCHAIN                                 │
+│                          RHIZOS                                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐     │
@@ -65,8 +65,8 @@ Modchain is a peer-to-peer compute marketplace where users can rent GPU/CPU reso
 
 ```bash
 # Clone the repo
-git clone https://github.com/Huck-dev/modchain.git
-cd modchain
+git clone https://github.com/modc2/mod.git
+cd mod
 
 # Install dependencies
 pnpm install
@@ -103,7 +103,7 @@ pnpm build:desktop
 ## Project Structure
 
 ```
-modchain/
+rhizos-cloud/
 ├── src/
 │   ├── orchestrator/      # Job matching & payment service
 │   │   └── src/
@@ -158,7 +158,8 @@ modchain/
 | Page | Route | Description |
 |------|-------|-------------|
 | Dashboard | `/` | Network stats, jobs, nodes |
-| Compute | `/submit` | Submit compute requests |
+| Deploy | `/deploy` | GPU selection & quick templates |
+| Flow | `/flow` | Visual workflow builder |
 | Modules | `/modules` | Browse MCP modules |
 | Node | `/node` | Control local node agent |
 | Settings | `/settings` | Configuration |
@@ -220,24 +221,25 @@ max_memory_mb = 32768
 ### Desktop Settings
 
 Stored in platform config directory:
-- Linux: `~/.config/modchain/settings.json`
-- Windows: `%APPDATA%/modchain/settings.json`
+- Linux: `~/.config/rhizos/settings.json`
+- Windows: `%APPDATA%/rhizos/settings.json`
 
 ## Development Status
 
 | Component | Status |
 |-----------|--------|
-| Orchestrator API | ✅ Complete |
-| Node Agent | ✅ Complete |
-| Desktop UI | ✅ Complete |
-| MCP Adapters | ✅ Complete |
-| Payment System | ✅ Complete |
-| Module Registry | 🚧 Mock data |
-| Chain Integration | 🚧 Planned |
+| Orchestrator API | Complete |
+| Node Agent | Complete |
+| Desktop UI | Complete |
+| MCP Adapters | Complete |
+| Payment System | Complete |
+| Module Registry | Mock data |
+| Chain Integration | Planned |
 
 ## Related Projects
 
-- [mod-chain](https://github.com/mod-chain) - MCP module registry and chain infrastructure
+- [modc2](https://github.com/modc2) - Compute marketplace ecosystem
+- [commune-ai](https://github.com/commune-ai) - AI module library
 - [MCP Specification](https://modelcontextprotocol.io/) - Model Context Protocol
 
 ## License

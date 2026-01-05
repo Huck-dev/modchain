@@ -1,4 +1,4 @@
-# Modchain Local Development Stack
+# RhizOS Local Development Stack
 #
 # Usage:
 #   docker-compose up -d          # Start all services
@@ -40,7 +40,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - node-cpu-data:/app/data
     environment:
-      - MODCHAIN_ORCHESTRATOR=http://orchestrator:8080
+      - RHIZOS_ORCHESTRATOR=http://orchestrator:8080
     command: ["start", "--orchestrator", "http://orchestrator:8080"]
     restart: unless-stopped
 
@@ -58,7 +58,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - node-gpu-data:/app/data
     environment:
-      - MODCHAIN_ORCHESTRATOR=http://orchestrator:8080
+      - RHIZOS_ORCHESTRATOR=http://orchestrator:8080
     command: ["start", "--orchestrator", "http://orchestrator:8080"]
     deploy:
       resources:
@@ -94,4 +94,4 @@ volumes:
 
 networks:
   default:
-    name: modchain
+    name: rhizos

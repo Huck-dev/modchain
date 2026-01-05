@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Modchain CLI
+ * RhizOS CLI
  *
  * Command-line interface for submitting jobs and monitoring the network.
  */
@@ -13,7 +13,7 @@ const DEFAULT_ORCHESTRATOR = 'http://localhost:8080';
 
 // ============ API Client ============
 
-class ModchainClient {
+class RhizOSClient {
   constructor(private baseUrl: string) {}
 
   async getHealth(): Promise<{ status: string; version: string }> {
@@ -124,8 +124,8 @@ class ModchainClient {
 // ============ CLI Commands ============
 
 program
-  .name('modchain')
-  .description('Modchain CLI - Submit jobs and monitor the network')
+  .name('rhizos')
+  .description('RhizOS CLI - Submit jobs and monitor the network')
   .version('0.1.0')
   .option('-o, --orchestrator <url>', 'Orchestrator URL', DEFAULT_ORCHESTRATOR);
 
@@ -134,7 +134,7 @@ program
   .description('Show network status')
   .action(async () => {
     const opts = program.opts();
-    const client = new ModchainClient(opts.orchestrator);
+    const client = new RhizOSClient(opts.orchestrator);
 
     const spinner = ora('Fetching network status...').start();
 
@@ -146,7 +146,7 @@ program
 
       spinner.stop();
 
-      console.log(chalk.bold('\nModchain Network Status\n'));
+      console.log(chalk.bold('\nRhizOS Network Status\n'));
       console.log(chalk.green('✓ Orchestrator online'), `(v${health.version})`);
       console.log('');
 
@@ -172,7 +172,7 @@ program
   .description('List connected nodes')
   .action(async () => {
     const opts = program.opts();
-    const client = new ModchainClient(opts.orchestrator);
+    const client = new RhizOSClient(opts.orchestrator);
 
     const spinner = ora('Fetching nodes...').start();
 
@@ -216,9 +216,9 @@ program
   .option('--wait', 'Wait for job completion')
   .action(async (options) => {
     const opts = program.opts();
-    const client = new ModchainClient(opts.orchestrator);
+    const client = new RhizOSClient(opts.orchestrator);
 
-    let request: Parameters<ModchainClient['submitJob']>[0];
+    let request: Parameters<RhizOSClient['submitJob']>[0];
 
     switch (options.type) {
       case 'llm':
@@ -313,7 +313,7 @@ program
           }
         }
       } else {
-        console.log(`\nCheck status with: ${chalk.cyan(`modchain job ${job.job_id}`)}`);
+        console.log(`\nCheck status with: ${chalk.cyan(`rhizos job ${job.job_id}`)}`);
       }
     } catch (error) {
       spinner.fail('Failed to submit job');
@@ -328,7 +328,7 @@ program
   .option('--wait', 'Wait for job completion')
   .action(async (jobId: string, options) => {
     const opts = program.opts();
-    const client = new ModchainClient(opts.orchestrator);
+    const client = new RhizOSClient(opts.orchestrator);
 
     try {
       let job;
@@ -371,7 +371,7 @@ program
   .description('Cancel a job')
   .action(async (jobId: string) => {
     const opts = program.opts();
-    const client = new ModchainClient(opts.orchestrator);
+    const client = new RhizOSClient(opts.orchestrator);
 
     const spinner = ora('Cancelling job...').start();
 

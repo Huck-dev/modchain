@@ -1,7 +1,7 @@
 /**
  * Payment Service
  *
- * Handles crypto payment processing for the Modchain platform.
+ * Handles crypto payment processing for the RhizOS platform.
  * Currently a stub implementation - will integrate with BTCPay Server or similar.
  */
 

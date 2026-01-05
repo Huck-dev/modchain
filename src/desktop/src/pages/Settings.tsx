@@ -250,7 +250,7 @@ export function Settings() {
         fontSize: '0.75rem',
         fontFamily: 'var(--font-mono)',
       }}>
-        MODCHAIN NODE v0.1.0 // BUILD 2026.01.04
+        RHIZOS NODE v0.1.0 // BUILD 2026.01.04
       </div>
     </div>
   );

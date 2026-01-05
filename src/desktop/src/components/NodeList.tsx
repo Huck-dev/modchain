@@ -30,7 +30,7 @@ export function NodeList({ nodes }: NodeListProps) {
         <Zap size={32} style={{ marginBottom: '0.5rem', opacity: 0.3 }} />
         <div>NO NODES CONNECTED</div>
         <div style={{ fontSize: '0.7rem', marginTop: '0.5rem' }}>
-          Run <code>modchain-node start</code> to connect
+          Run <code>rhizos-node start</code> to connect
         </div>
       </div>
     );

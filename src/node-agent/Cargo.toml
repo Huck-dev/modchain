@@ -1,10 +1,10 @@
 [package]
-name = "modchain-node"
+name = "rhizos-node"
 version = "0.1.0"
 edition = "2021"
-description = "Modchain Node Agent - Expose your hardware, earn crypto"
+description = "RhizOS Node Agent - Expose your hardware, earn crypto"
 license = "MIT"
-repository = "https://github.com/modchain/modchain"
+repository = "https://github.com/modc2/mod"
 
 [dependencies]
 # Async runtime
@@ -53,5 +53,5 @@ futures-util = "0.3"
 tokio-test = "0.4"
 
 [[bin]]
-name = "modchain-node"
+name = "rhizos-node"
 path = "src/main.rs"

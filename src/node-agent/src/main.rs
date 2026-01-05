@@ -1,6 +1,6 @@
-//! Modchain Node Agent
+//! RhizOS Node Agent
 //!
-//! The installable application that exposes hardware to the Modchain network.
+//! The installable application that exposes hardware to the RhizOS network.
 //! Contributors run this to offer their compute resources and earn crypto.
 
 mod config;
@@ -14,8 +14,8 @@ use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser)]
-#[command(name = "modchain-node")]
-#[command(about = "Expose your hardware to the Modchain network and earn crypto")]
+#[command(name = "rhizos-node")]
+#[command(about = "Expose your hardware to the RhizOS network and earn crypto")]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
@@ -35,7 +35,7 @@ enum Commands {
         config: Option<String>,
 
         /// Orchestrator URL to connect to
-        #[arg(short, long, default_value = "https://orchestrator.modchain.io")]
+        #[arg(short, long, default_value = "https://orchestrator.rhizos.cloud")]
         orchestrator: String,
     },
 
@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Start { config: config_path, orchestrator } => {
-            info!("Starting Modchain Node Agent...");
+            info!("Starting RhizOS Node Agent...");
 
             // Load configuration
             let config = match config_path {
@@ -108,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Info => {
-            println!("Modchain Node - Hardware Information\n");
+            println!("RhizOS Node - Hardware Information\n");
             println!("=====================================\n");
 
             let caps = hardware::detect_capabilities().await?;
@@ -160,12 +160,12 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Init { output } => {
             let config = config::NodeConfig::default();
-            let output_path = output.unwrap_or_else(|| "modchain-node.toml".to_string());
+            let output_path = output.unwrap_or_else(|| "rhizos-node.toml".to_string());
 
             config.save_to_file(&output_path)?;
             println!("Configuration file created at: {}", output_path);
             println!("\nEdit this file to customize your node settings, then run:");
-            println!("  modchain-node start --config {}", output_path);
+            println!("  rhizos-node start --config {}", output_path);
         }
 
         Commands::Register { orchestrator, wallet } => {

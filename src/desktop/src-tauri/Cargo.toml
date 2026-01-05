@@ -1,7 +1,7 @@
 [package]
-name = "modchain-desktop"
+name = "rhizos-desktop"
 version = "0.1.0"
-description = "Modchain Desktop - Neural Network Control Center"
+description = "RhizOS Desktop - Decentralized Compute Control Center"
 authors = ["Huck-dev"]
 license = "MIT"
 repository = ""

@@ -123,9 +123,9 @@ async fn start_node(
 
     // Find the node-agent binary
     let node_binary = if cfg!(target_os = "windows") {
-        "modchain-node.exe"
+        "rhizos-node.exe"
     } else {
-        "modchain-node"
+        "rhizos-node"
     };
 
     // Try to find the binary in various locations
@@ -201,7 +201,7 @@ fn get_settings() -> NodeSettings {
 
 #[tauri::command]
 fn save_settings(settings: NodeSettings) -> Result<(), String> {
-    let config_dir = directories::ProjectDirs::from("com", "modchain", "desktop")
+    let config_dir = directories::ProjectDirs::from("com", "rhizos", "cloud")
         .ok_or("Could not determine config directory")?;
 
     let config_path = config_dir.config_dir().join("settings.json");
@@ -218,7 +218,7 @@ fn save_settings(settings: NodeSettings) -> Result<(), String> {
 }
 
 fn load_settings() -> Option<NodeSettings> {
-    let config_dir = directories::ProjectDirs::from("com", "modchain", "desktop")?;
+    let config_dir = directories::ProjectDirs::from("com", "rhizos", "cloud")?;
     let config_path = config_dir.config_dir().join("settings.json");
 
     let content = std::fs::read_to_string(&config_path).ok()?;
@@ -242,7 +242,7 @@ fn main() {
 
             let _tray = TrayIconBuilder::new()
                 .menu(&menu)
-                .tooltip("Modchain - Neural Network")
+                .tooltip("RhizOS - Decentralized Compute")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => {
                         app.exit(0);

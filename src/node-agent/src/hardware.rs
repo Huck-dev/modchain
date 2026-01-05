@@ -117,7 +117,7 @@ pub async fn detect_capabilities() -> Result<NodeCapabilities> {
 fn get_or_create_node_id() -> Result<String> {
     // Try to load existing node ID from config directory
     if let Some(config_dir) = dirs::config_dir() {
-        let node_id_path = config_dir.join("modchain").join("node_id");
+        let node_id_path = config_dir.join("rhizos").join("node_id");
         if node_id_path.exists() {
             if let Ok(id) = std::fs::read_to_string(&node_id_path) {
                 return Ok(id.trim().to_string());
@@ -515,7 +515,7 @@ async fn benchmark_storage() -> Result<f64> {
     use std::time::Instant;
     use tokio::io::AsyncWriteExt;
 
-    let temp_path = std::env::temp_dir().join("modchain_bench_temp");
+    let temp_path = std::env::temp_dir().join("rhizos_bench_temp");
     let size = 50 * 1024 * 1024; // 50 MB
     let data = vec![0u8; size];
 
