@@ -56,15 +56,23 @@ Renamed entire project from **Modchain** → **RhizOS-Cloud**:
 - Config dir: `~/.config/rhizos/`
 - GitHub repo: https://github.com/Huck-dev/rhizos-cloud
 
+### 4. UI Redesign - Modern Sleek Theme
+Replaced cyberpunk neon aesthetic with clean, modern design:
+- **Color palette**: Indigo primary (#6366f1), zinc grays for backgrounds
+- **Fonts**: Inter for UI, JetBrains Mono for code
+- **Removed**: GlitchText component, neon glows, scanlines, grid animations
+- **Added**: Clean shadows, subtle borders, professional aesthetic
+- Updated all 14 component files to use new CSS variables
+
 ## Key Files
 
 ### Desktop App
-- `src/desktop/src/App.tsx` - Main router with nav
+- `src/desktop/src/App.tsx` - Main router with modern nav
 - `src/desktop/src/pages/Deploy.tsx` - GPU selection + templates
 - `src/desktop/src/pages/FlowBuilder.tsx` - Visual workflow builder
 - `src/desktop/src/pages/Modules.tsx` - Browse commune-ai modules
 - `src/desktop/src/context/ModuleContext.tsx` - Shared module state
-- `src/desktop/src/styles/cyberpunk.css` - Neon theme
+- `src/desktop/src/styles/cyberpunk.css` - Modern theme (indigo/zinc)
 
 ### Node Agent (Rust)
 - `src/node-agent/Cargo.toml` - Binary: `rhizos-node`
@@ -102,13 +110,14 @@ cargo build --release      # Build rhizos-node binary
 
 ## UI Theme
 
-Cyberpunk aesthetic:
-- Neon Cyan: `#00ffff`
-- Neon Magenta: `#ff00ff`
-- Neon Green: `#00ff41`
-- Background: `#0a0a0f`
-- Scanlines + grid animation
-- Orbitron + JetBrains Mono fonts
+Modern sleek design:
+- **Primary**: Indigo `#6366f1`
+- **Success**: Green `#22c55e`
+- **Warning**: Amber `#f59e0b`
+- **Error**: Red `#ef4444`
+- **Background**: Zinc `#09090b`, `#18181b`, `#27272a`
+- **Fonts**: Inter (UI), JetBrains Mono (code)
+- Clean shadows and subtle borders
 
 ## Notes
 
