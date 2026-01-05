@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Cpu, Clock, DollarSign, Send, ChevronRight, Check, Box, X, Bot, TrendingUp, Coins, Database, Search, Brain } from 'lucide-react';
-import { CyberButton, GlitchText } from '../components';
+import { CyberButton } from '../components';
 import { useModule } from '../context/ModuleContext';
 
 type Step = 'module' | 'configure' | 'confirm' | 'submitted';
@@ -33,9 +33,9 @@ const getCategoryIcon = (category: string) => {
 
 const getCategoryColor = (category: string) => {
   switch (category) {
-    case 'ai-agents': return 'var(--neon-cyan)';
-    case 'trading': return 'var(--neon-green)';
-    case 'defi': return 'var(--neon-magenta)';
+    case 'ai-agents': return 'var(--primary)';
+    case 'trading': return 'var(--success)';
+    case 'defi': return 'var(--primary-light)';
     case 'infrastructure': return '#ffff00';
     case 'data': return '#ff6b6b';
     case 'models': return '#a855f7';
@@ -164,7 +164,7 @@ export function SubmitJob() {
       }}>
         <span style={{
           fontSize: '0.75rem',
-          color: highlight ? 'var(--neon-magenta)' : 'var(--text-secondary)',
+          color: highlight ? 'var(--primary-light)' : 'var(--text-secondary)',
           textTransform: 'uppercase',
           letterSpacing: '0.1em'
         }}>
@@ -174,7 +174,7 @@ export function SubmitJob() {
         <span style={{
           fontFamily: 'var(--font-display)',
           fontSize: '1rem',
-          color: highlight ? 'var(--neon-magenta)' : 'var(--neon-cyan)',
+          color: highlight ? 'var(--primary-light)' : 'var(--primary)',
         }}>
           {value} {unit}
         </span>
@@ -190,7 +190,7 @@ export function SubmitJob() {
         style={{
           width: '100%',
           height: '8px',
-          background: `linear-gradient(90deg, ${highlight ? 'var(--neon-magenta)' : 'var(--neon-cyan)'} ${((value - min) / (max - min)) * 100}%, var(--bg-elevated) ${((value - min) / (max - min)) * 100}%)`,
+          background: `linear-gradient(90deg, ${highlight ? 'var(--primary-light)' : 'var(--primary)'} ${((value - min) / (max - min)) * 100}%, var(--bg-elevated) ${((value - min) / (max - min)) * 100}%)`,
           borderRadius: '4px',
           outline: 'none',
           cursor: disabled ? 'not-allowed' : 'pointer',
@@ -218,7 +218,7 @@ export function SubmitJob() {
       <div style={{
         padding: 'var(--gap-lg)',
         background: 'linear-gradient(135deg, rgba(0, 255, 255, 0.1), rgba(255, 0, 255, 0.05))',
-        border: '2px solid var(--neon-cyan)',
+        border: '2px solid var(--primary)',
         borderRadius: 'var(--radius-md)',
         marginBottom: 'var(--gap-xl)',
         boxShadow: 'var(--glow-cyan)',
@@ -259,7 +259,7 @@ export function SubmitJob() {
               borderRadius: 'var(--radius-sm)',
               padding: '0.5rem',
               cursor: 'pointer',
-              color: 'var(--neon-red, #ff4444)',
+              color: 'var(--error)',
               display: 'flex',
               alignItems: 'center',
               gap: '0.25rem',
@@ -295,7 +295,7 @@ export function SubmitJob() {
                 border: '1px solid rgba(0, 255, 255, 0.2)',
                 borderRadius: '2px',
                 fontSize: '0.65rem',
-                color: 'var(--neon-cyan)',
+                color: 'var(--primary)',
                 fontFamily: 'var(--font-mono)',
               }}
             >
@@ -316,7 +316,7 @@ export function SubmitJob() {
           borderRadius: 'var(--radius-sm)',
           fontFamily: 'var(--font-mono)',
           fontSize: '0.7rem',
-          color: 'var(--neon-cyan)',
+          color: 'var(--primary)',
         }}>
           {selectedModule.chain_uri}
         </div>
@@ -328,7 +328,7 @@ export function SubmitJob() {
     <div className="fade-in" style={{ maxWidth: '800px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 'var(--gap-xl)' }}>
-        <GlitchText text="DEPLOY COMPUTE" as="h2" className="glitch-hover" />
+        <h2 className="page-title">Deploy Compute</h2>
         <p style={{ color: 'var(--text-muted)', marginTop: 'var(--gap-sm)' }}>
           {selectedModule
             ? `Configure resources for ${selectedModule.name}`
@@ -357,13 +357,13 @@ export function SubmitJob() {
                 width: 32,
                 height: 32,
                 borderRadius: '50%',
-                border: `2px solid ${isCurrent ? 'var(--neon-cyan)' : isComplete ? 'var(--neon-green)' : 'var(--text-muted)'}`,
+                border: `2px solid ${isCurrent ? 'var(--primary)' : isComplete ? 'var(--success)' : 'var(--text-muted)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontFamily: 'var(--font-display)',
                 fontSize: '0.875rem',
-                color: isCurrent ? 'var(--neon-cyan)' : 'var(--text-muted)',
+                color: isCurrent ? 'var(--primary)' : 'var(--text-muted)',
                 background: isComplete ? 'rgba(0, 255, 65, 0.2)' : 'transparent',
                 boxShadow: isCurrent ? 'var(--glow-cyan)' : 'none',
               }}>
@@ -371,7 +371,7 @@ export function SubmitJob() {
               </div>
               <span style={{
                 fontSize: '0.7rem',
-                color: isCurrent ? 'var(--neon-cyan)' : 'var(--text-muted)',
+                color: isCurrent ? 'var(--primary)' : 'var(--text-muted)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.1em',
               }}>
@@ -420,7 +420,7 @@ export function SubmitJob() {
                 marginBottom: 'var(--gap-lg)',
                 fontSize: '0.75rem',
               }}>
-                <strong style={{ color: 'var(--neon-magenta)' }}>MINIMUM REQUIREMENTS:</strong>
+                <strong style={{ color: 'var(--primary-light)' }}>MINIMUM REQUIREMENTS:</strong>
                 <span style={{ color: 'var(--text-secondary)', marginLeft: 'var(--gap-sm)' }}>
                   {selectedModule.requirements.min_gpus && `${selectedModule.requirements.min_gpus} GPU`}
                   {selectedModule.requirements.min_gpus && selectedModule.requirements.min_cpu_cores && ' • '}
@@ -501,7 +501,7 @@ export function SubmitJob() {
                 <span style={{
                   fontFamily: 'var(--font-display)',
                   fontSize: '1.75rem',
-                  color: 'var(--neon-green)',
+                  color: 'var(--success)',
                   textShadow: 'var(--glow-green)',
                 }}>
                   ${calculateCost().toFixed(2)} <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>USDC</span>
@@ -543,7 +543,7 @@ export function SubmitJob() {
               {config.gpuCount > 0 && (
                 <div className="hardware-item">
                   <div className="hardware-label">GPUs</div>
-                  <div className="hardware-value" style={{ color: 'var(--neon-magenta)' }}>{config.gpuCount}</div>
+                  <div className="hardware-value" style={{ color: 'var(--primary-light)' }}>{config.gpuCount}</div>
                 </div>
               )}
               <div className="hardware-item">
@@ -560,7 +560,7 @@ export function SubmitJob() {
               </div>
               <div className="hardware-item">
                 <div className="hardware-label">TOTAL COST</div>
-                <div className="hardware-value" style={{ color: 'var(--neon-green)' }}>
+                <div className="hardware-value" style={{ color: 'var(--success)' }}>
                   ${calculateCost().toFixed(2)}
                 </div>
               </div>
@@ -575,7 +575,7 @@ export function SubmitJob() {
               color: 'var(--text-secondary)',
               marginBottom: 'var(--gap-xl)',
             }}>
-              <strong style={{ color: 'var(--neon-cyan)' }}>DEPLOYMENT INFO:</strong> Your module will be deployed
+              <strong style={{ color: 'var(--primary)' }}>DEPLOYMENT INFO:</strong> Your module will be deployed
               on the next available node matching these requirements. You'll receive access credentials
               and can interact with the module's tools once deployment is complete.
             </div>
@@ -601,20 +601,20 @@ export function SubmitJob() {
               height: 80,
               margin: '0 auto var(--gap-lg)',
               borderRadius: '50%',
-              border: '3px solid var(--neon-green)',
+              border: '3px solid var(--success)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: 'var(--glow-green)',
               animation: 'pulse-scale 2s ease-in-out infinite',
             }}>
-              <Check size={40} style={{ color: 'var(--neon-green)' }} />
+              <Check size={40} style={{ color: 'var(--success)' }} />
             </div>
 
             <div style={{
               fontFamily: 'var(--font-display)',
               fontSize: '1.5rem',
-              color: 'var(--neon-green)',
+              color: 'var(--success)',
               marginBottom: 'var(--gap-md)',
             }}>
               DEPLOYMENT QUEUED
@@ -633,7 +633,7 @@ export function SubmitJob() {
               marginBottom: 'var(--gap-lg)',
             }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '4px' }}>JOB ID</div>
-              <div style={{ color: 'var(--neon-cyan)', fontSize: '0.9rem' }}>{jobId}</div>
+              <div style={{ color: 'var(--primary)', fontSize: '0.9rem' }}>{jobId}</div>
             </div>
 
             <div style={{
@@ -644,21 +644,21 @@ export function SubmitJob() {
             }}>
               <div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>MODULE</div>
-                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-cyan)', fontSize: '0.9rem' }}>{selectedModule.name}</div>
+                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--primary)', fontSize: '0.9rem' }}>{selectedModule.name}</div>
               </div>
               <div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>DURATION</div>
-                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-cyan)' }}>{config.hours}h</div>
+                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--primary)' }}>{config.hours}h</div>
               </div>
               <div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>RESOURCES</div>
-                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-magenta)' }}>
+                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--primary-light)' }}>
                   {config.gpuCount > 0 ? `${config.gpuCount} GPU` : `${config.cpuCores} CPU`}
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>COST</div>
-                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-green)' }}>${calculateCost().toFixed(2)}</div>
+                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--success)' }}>${calculateCost().toFixed(2)}</div>
               </div>
             </div>
 

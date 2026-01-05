@@ -12,11 +12,11 @@ interface JobListProps {
 }
 
 const statusConfig: Record<string, { icon: typeof Clock; color: string }> = {
-  pending: { icon: Clock, color: 'var(--neon-yellow)' },
-  assigned: { icon: PlayCircle, color: 'var(--neon-cyan)' },
-  running: { icon: Loader, color: 'var(--neon-cyan)' },
-  completed: { icon: CheckCircle, color: 'var(--neon-green)' },
-  failed: { icon: XCircle, color: 'var(--neon-red)' },
+  pending: { icon: Clock, color: 'var(--warning)' },
+  assigned: { icon: PlayCircle, color: 'var(--info)' },
+  running: { icon: Loader, color: 'var(--info)' },
+  completed: { icon: CheckCircle, color: 'var(--success)' },
+  failed: { icon: XCircle, color: 'var(--error)' },
   cancelled: { icon: XCircle, color: 'var(--text-muted)' },
 };
 
@@ -47,7 +47,7 @@ export function JobList({ jobs, maxItems = 10 }: JobListProps) {
               className={job.status === 'running' ? 'spin' : ''}
             />
             <span className="job-id">
-              <span style={{ color: 'var(--neon-magenta)' }}>#</span>
+              <span style={{ color: 'var(--primary-light)' }}>#</span>
               {job.id.slice(0, 8)}
             </span>
             <span className={`job-status ${job.status}`}>

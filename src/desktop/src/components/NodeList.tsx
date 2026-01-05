@@ -43,7 +43,7 @@ export function NodeList({ nodes }: NodeListProps) {
           <div className={`node-status ${node.available ? 'online' : 'busy'}`} />
           <div className="node-info">
             <div className="node-id">
-              <span style={{ color: 'var(--neon-cyan)' }}>//</span> {node.id.slice(0, 12)}
+              <span style={{ color: 'var(--primary)' }}>//</span> {node.id.slice(0, 12)}
             </div>
             <div className="node-specs">
               <Zap size={10} style={{ display: 'inline', marginRight: '4px' }} />
@@ -59,7 +59,7 @@ export function NodeList({ nodes }: NodeListProps) {
           <div style={{
             fontFamily: 'var(--font-mono)',
             fontSize: '0.7rem',
-            color: node.current_jobs > 0 ? 'var(--neon-yellow)' : 'var(--text-muted)'
+            color: node.current_jobs > 0 ? 'var(--warning)' : 'var(--text-muted)'
           }}>
             {node.current_jobs} ACTIVE
           </div>

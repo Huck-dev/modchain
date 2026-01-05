@@ -4,26 +4,23 @@ interface StatsCardProps {
   value: string | number;
   label: string;
   icon?: LucideIcon;
-  color?: 'cyan' | 'magenta' | 'green' | 'yellow';
+  color?: 'primary' | 'secondary' | 'success' | 'warning';
   pulse?: boolean;
 }
 
 const colorStyles = {
-  cyan: { color: 'var(--neon-cyan)', shadow: 'var(--glow-cyan)' },
-  magenta: { color: 'var(--neon-magenta)', shadow: 'var(--glow-magenta)' },
-  green: { color: 'var(--neon-green)', shadow: 'var(--glow-green)' },
-  yellow: { color: 'var(--neon-yellow)', shadow: '0 0 10px #ffff00, 0 0 20px #ffff0040' },
+  primary: { color: 'var(--primary)' },
+  secondary: { color: 'var(--primary-light)' },
+  success: { color: 'var(--success)' },
+  warning: { color: 'var(--warning)' },
 };
 
-export function StatsCard({ value, label, icon: Icon, color = 'cyan', pulse }: StatsCardProps) {
+export function StatsCard({ value, label, icon: Icon, color = 'primary', pulse }: StatsCardProps) {
   const style = colorStyles[color];
 
   return (
-    <div className={`stat-card hover-lift ${pulse ? 'border-glow' : ''}`}>
-      <div
-        className="stat-value"
-        style={{ color: style.color, textShadow: style.shadow }}
-      >
+    <div className={`stat-card hover-lift`}>
+      <div className="stat-value" style={{ color: style.color }}>
         {value}
       </div>
       <div className="stat-label">{label}</div>

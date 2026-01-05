@@ -124,20 +124,20 @@ export function NodeControl() {
                 width: 60,
                 height: 60,
                 borderRadius: '50%',
-                border: `2px solid ${nodeState.running ? 'var(--neon-green)' : 'var(--text-muted)'}`,
+                border: `2px solid ${nodeState.running ? 'var(--success)' : 'var(--text-muted)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: nodeState.running ? 'var(--glow-green)' : 'none',
               }}
             >
-              <Power size={28} style={{ color: nodeState.running ? 'var(--neon-green)' : 'var(--text-muted)' }} />
+              <Power size={28} style={{ color: nodeState.running ? 'var(--success)' : 'var(--text-muted)' }} />
             </div>
             <div>
               <div style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: '1.25rem',
-                color: nodeState.running ? 'var(--neon-green)' : 'var(--text-primary)',
+                color: nodeState.running ? 'var(--success)' : 'var(--text-primary)',
                 letterSpacing: '0.1em',
               }}>
                 {nodeState.running ? 'NODE ACTIVE' : 'NODE OFFLINE'}
@@ -178,7 +178,7 @@ export function NodeControl() {
           </div>
           <div className="cyber-card-body">
             <div style={{ marginBottom: 'var(--gap-md)' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--neon-cyan)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--primary)' }}>
                 {hardware?.cpu.model || 'Detecting...'}
               </div>
             </div>
@@ -213,7 +213,7 @@ export function NodeControl() {
               </div>
               <div className="hardware-item">
                 <div className="hardware-label">AVAILABLE</div>
-                <div className="hardware-value" style={{ color: 'var(--neon-green)' }}>
+                <div className="hardware-value" style={{ color: 'var(--success)' }}>
                   {hardware ? formatMemory(hardware.memory.available_mb) : '-'}
                 </div>
               </div>
@@ -240,7 +240,7 @@ export function NodeControl() {
               <Zap size={14} style={{ marginRight: '0.5rem' }} />
               GPU ACCELERATORS
             </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--neon-magenta)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary-light)' }}>
               {hardware?.gpus.length ?? 0} DETECTED
             </span>
           </div>
@@ -253,22 +253,22 @@ export function NodeControl() {
                       width: 40,
                       height: 40,
                       borderRadius: '8px',
-                      border: '1px solid var(--neon-magenta)',
+                      border: '1px solid var(--primary-light)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: 'var(--neon-magenta)',
+                      color: 'var(--primary-light)',
                       fontFamily: 'var(--font-display)',
                       fontSize: '0.875rem',
                     }}>
                       #{i}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-magenta)', marginBottom: '4px' }}>
+                      <div style={{ fontFamily: 'var(--font-display)', color: 'var(--primary-light)', marginBottom: '4px' }}>
                         {gpu.model}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        <span style={{ color: 'var(--neon-cyan)' }}>{(gpu.vram_mb / 1024).toFixed(0)} GB</span> VRAM
+                        <span style={{ color: 'var(--primary)' }}>{(gpu.vram_mb / 1024).toFixed(0)} GB</span> VRAM
                         <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
                         Driver: {gpu.driver_version}
                       </div>
@@ -279,7 +279,7 @@ export function NodeControl() {
                       border: '1px solid rgba(0, 255, 65, 0.3)',
                       borderRadius: '4px',
                       fontSize: '0.7rem',
-                      color: 'var(--neon-green)',
+                      color: 'var(--success)',
                       fontFamily: 'var(--font-mono)',
                     }}>
                       CUDA

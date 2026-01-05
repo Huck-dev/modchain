@@ -194,25 +194,25 @@ export function Dashboard() {
             <div className="hardware-grid">
               <div className="hardware-item">
                 <div className="hardware-label">PENDING</div>
-                <div className="hardware-value" style={{ color: 'var(--neon-yellow)' }}>
+                <div className="hardware-value" style={{ color: 'var(--warning)' }}>
                   {stats?.jobs.pending_jobs ?? 0}
                 </div>
               </div>
               <div className="hardware-item">
                 <div className="hardware-label">RUNNING</div>
-                <div className="hardware-value" style={{ color: 'var(--neon-cyan)' }}>
+                <div className="hardware-value" style={{ color: 'var(--primary)' }}>
                   {stats?.jobs.running_jobs ?? 0}
                 </div>
               </div>
               <div className="hardware-item">
                 <div className="hardware-label">COMPLETED</div>
-                <div className="hardware-value" style={{ color: 'var(--neon-green)' }}>
+                <div className="hardware-value" style={{ color: 'var(--success)' }}>
                   {stats?.jobs.completed_jobs ?? 0}
                 </div>
               </div>
               <div className="hardware-item">
                 <div className="hardware-label">FAILED</div>
-                <div className="hardware-value" style={{ color: 'var(--neon-red)' }}>
+                <div className="hardware-value" style={{ color: 'var(--error)' }}>
                   {stats?.jobs.failed_jobs ?? 0}
                 </div>
               </div>
@@ -244,7 +244,7 @@ export function Dashboard() {
               </div>
               <div className="hardware-item">
                 <div className="hardware-label">PLATFORM FEES</div>
-                <div className="hardware-value" style={{ color: 'var(--neon-green)' }}>
+                <div className="hardware-value" style={{ color: 'var(--success)' }}>
                   {formatCurrency(paymentStats?.platform_fees_cents ?? 0)}
                 </div>
               </div>
@@ -259,7 +259,7 @@ export function Dashboard() {
               <Activity size={14} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
               SYSTEM LOG
             </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--neon-green)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--success)' }}>
               LIVE
             </span>
           </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Cpu, Clock, Play, Plus, Box, Bot, TrendingUp, Coins, Brain, Rocket, Star, ChevronRight, Server, Activity } from 'lucide-react';
-import { GlitchText, CyberButton, StatsCard } from '../components';
+import { CyberButton, StatsCard } from '../components';
 import { useModule } from '../context/ModuleContext';
 
 interface Template {
@@ -121,7 +121,7 @@ export function Deploy() {
         marginBottom: 'var(--gap-xl)'
       }}>
         <div>
-          <GlitchText text="DEPLOY" as="h2" className="glitch-hover" />
+          <h2 className="page-title">Deploy</h2>
           <p style={{ color: 'var(--text-muted)', marginTop: 'var(--gap-sm)' }}>
             Launch GPU pods in seconds or build custom workflows
           </p>
@@ -162,7 +162,7 @@ export function Deploy() {
                   background: selectedGpu === gpu.id
                     ? 'linear-gradient(135deg, rgba(0, 255, 255, 0.15), rgba(255, 0, 255, 0.05))'
                     : 'var(--bg-elevated)',
-                  border: `2px solid ${selectedGpu === gpu.id ? 'var(--neon-cyan)' : 'rgba(0, 255, 255, 0.1)'}`,
+                  border: `2px solid ${selectedGpu === gpu.id ? 'var(--primary)' : 'rgba(0, 255, 255, 0.1)'}`,
                   borderRadius: 'var(--radius-md)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
@@ -173,7 +173,7 @@ export function Deploy() {
                 <div style={{
                   fontFamily: 'var(--font-display)',
                   fontSize: '1rem',
-                  color: gpu.id === 'cpu' ? 'var(--text-primary)' : 'var(--neon-magenta)',
+                  color: gpu.id === 'cpu' ? 'var(--text-primary)' : 'var(--primary-light)',
                   marginBottom: 'var(--gap-sm)',
                 }}>
                   {gpu.name}
@@ -189,7 +189,7 @@ export function Deploy() {
                 <div style={{
                   fontFamily: 'var(--font-display)',
                   fontSize: '1.25rem',
-                  color: 'var(--neon-green)',
+                  color: 'var(--success)',
                 }}>
                   ${gpu.price}<span style={{ fontSize: '0.7rem', opacity: 0.7 }}>/hr</span>
                 </div>
@@ -218,7 +218,7 @@ export function Deploy() {
           <button style={{
             background: 'none',
             border: 'none',
-            color: 'var(--neon-cyan)',
+            color: 'var(--primary)',
             fontSize: '0.75rem',
             cursor: 'pointer',
             display: 'flex',
@@ -260,7 +260,7 @@ export function Deploy() {
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}>
-                        <Icon size={20} style={{ color: 'var(--neon-cyan)' }} />
+                        <Icon size={20} style={{ color: 'var(--primary)' }} />
                       </div>
                       <div>
                         <div style={{
@@ -278,7 +278,7 @@ export function Deploy() {
                           {template.new && (
                             <span style={{
                               padding: '2px 6px',
-                              background: 'var(--neon-green)',
+                              background: 'var(--success)',
                               color: 'var(--bg-void)',
                               fontSize: '0.55rem',
                               borderRadius: '2px',
@@ -296,7 +296,7 @@ export function Deploy() {
                     <div style={{
                       fontFamily: 'var(--font-display)',
                       fontSize: '1rem',
-                      color: 'var(--neon-green)',
+                      color: 'var(--success)',
                     }}>
                       ${template.estimatedCost}<span style={{ fontSize: '0.6rem', opacity: 0.7 }}>/hr</span>
                     </div>
@@ -325,7 +325,7 @@ export function Deploy() {
                           border: '1px solid rgba(0, 255, 255, 0.15)',
                           borderRadius: '2px',
                           fontSize: '0.65rem',
-                          color: 'var(--neon-cyan)',
+                          color: 'var(--primary)',
                           fontFamily: 'var(--font-mono)',
                         }}
                       >
@@ -376,7 +376,7 @@ export function Deploy() {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              <Plus size={28} style={{ color: 'var(--neon-magenta)' }} />
+              <Plus size={28} style={{ color: 'var(--primary-light)' }} />
             </div>
             <div>
               <div style={{
@@ -392,7 +392,7 @@ export function Deploy() {
               </div>
             </div>
           </div>
-          <ChevronRight size={24} style={{ color: 'var(--neon-magenta)' }} />
+          <ChevronRight size={24} style={{ color: 'var(--primary-light)' }} />
         </div>
       </div>
     </div>

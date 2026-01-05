@@ -4,7 +4,7 @@ import {
   Bot, TrendingUp, Coins, Database, Brain, Search, Box, Plus, X, Play,
   ChevronRight, Trash2, Copy, Settings, Zap, ArrowRight, GripVertical
 } from 'lucide-react';
-import { GlitchText, CyberButton } from '../components';
+import { CyberButton } from '../components';
 
 interface FlowNode {
   id: string;
@@ -191,7 +191,7 @@ export function FlowBuilder() {
           >
             <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} />
           </button>
-          <GlitchText text="FLOW BUILDER" as="h2" className="glitch-hover" style={{ fontSize: '1.25rem' }} />
+          <h2 className="page-title" style={{ fontSize: '1.25rem' }}>Flow Builder</h2>
         </div>
         <div style={{ display: 'flex', gap: 'var(--gap-sm)' }}>
           <CyberButton onClick={() => setShowPalette(!showPalette)}>
@@ -300,8 +300,8 @@ export function FlowBuilder() {
           >
             <defs>
               <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="var(--neon-cyan)" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="var(--neon-magenta)" stopOpacity="0.8" />
+                <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="var(--primary-light)" stopOpacity="0.8" />
               </linearGradient>
             </defs>
             {connections.map(conn => (
@@ -341,7 +341,7 @@ export function FlowBuilder() {
                   top: node.y,
                   width: 200,
                   background: 'var(--bg-surface)',
-                  border: `2px solid ${isSelected ? 'var(--neon-cyan)' : color + '60'}`,
+                  border: `2px solid ${isSelected ? 'var(--primary)' : color + '60'}`,
                   borderRadius: 'var(--radius-md)',
                   boxShadow: isSelected ? 'var(--glow-cyan)' : `0 0 20px ${color}20`,
                   cursor: dragging?.nodeId === node.id ? 'grabbing' : 'grab',
@@ -399,7 +399,7 @@ export function FlowBuilder() {
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        background: 'var(--neon-cyan)',
+                        background: 'var(--primary)',
                         border: '2px solid var(--bg-void)',
                         marginLeft: -16,
                       }} />
@@ -425,7 +425,7 @@ export function FlowBuilder() {
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        background: 'var(--neon-magenta)',
+                        background: 'var(--primary-light)',
                         border: '2px solid var(--bg-void)',
                         marginRight: -16,
                       }} />

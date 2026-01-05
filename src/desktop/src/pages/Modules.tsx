@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Cpu, Zap, Globe, Lock, Star, Download, ExternalLink, Search, Bot, TrendingUp, Coins, Database, Code, Brain } from 'lucide-react';
-import { GlitchText, CyberButton, StatsCard } from '../components';
+import { CyberButton, StatsCard } from '../components';
 import { useModule } from '../context/ModuleContext';
 
 interface Module {
@@ -467,10 +467,10 @@ export function Modules() {
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'ai-agents': return 'var(--neon-cyan)';
-      case 'trading': return 'var(--neon-green)';
-      case 'defi': return 'var(--neon-magenta)';
-      case 'infrastructure': return 'var(--neon-yellow, #ffff00)';
+      case 'ai-agents': return 'var(--primary)';
+      case 'trading': return 'var(--success)';
+      case 'defi': return 'var(--primary-light)';
+      case 'infrastructure': return 'var(--warning)';
       case 'data': return '#ff6b6b';
       case 'models': return '#a855f7';
       default: return 'var(--text-secondary)';
@@ -509,7 +509,7 @@ export function Modules() {
     <div className="fade-in">
       {/* Header */}
       <div style={{ marginBottom: 'var(--gap-xl)' }}>
-        <GlitchText text="COMMUNE MODULES" as="h2" className="glitch-hover" />
+        <h2 className="page-title">Modules</h2>
         <p style={{ color: 'var(--text-muted)', marginTop: 'var(--gap-sm)' }}>
           Deploy AI agents, trading bots, and DeFi tools on decentralized compute
         </p>
@@ -597,11 +597,11 @@ export function Modules() {
                   ? 'rgba(0, 255, 255, 0.15)'
                   : 'var(--bg-surface)',
                 border: `1px solid ${selectedCategory === cat.id
-                  ? 'var(--neon-cyan)'
+                  ? 'var(--primary)'
                   : 'rgba(0, 255, 255, 0.1)'}`,
                 borderRadius: 'var(--radius-sm)',
                 color: selectedCategory === cat.id
-                  ? 'var(--neon-cyan)'
+                  ? 'var(--primary)'
                   : 'var(--text-secondary)',
                 fontFamily: 'var(--font-mono)',
                 fontSize: '0.65rem',
@@ -635,7 +635,7 @@ export function Modules() {
             width: 40,
             height: 40,
             border: '3px solid rgba(0, 255, 255, 0.1)',
-            borderTop: '3px solid var(--neon-cyan)',
+            borderTop: '3px solid var(--primary)',
             borderRadius: '50%',
             margin: '0 auto 1rem',
           }} />
@@ -691,7 +691,7 @@ export function Modules() {
                             {mod.name}
                           </span>
                           {mod.verified && (
-                            <Lock size={12} style={{ color: 'var(--neon-green)' }} />
+                            <Lock size={12} style={{ color: 'var(--success)' }} />
                           )}
                         </div>
                         <span style={{
@@ -747,7 +747,7 @@ export function Modules() {
                           border: '1px solid rgba(0, 255, 255, 0.1)',
                           borderRadius: '2px',
                           fontSize: '0.6rem',
-                          color: 'var(--neon-cyan)',
+                          color: 'var(--primary)',
                           fontFamily: 'var(--font-mono)',
                         }}
                       >
@@ -775,7 +775,7 @@ export function Modules() {
                   }}>
                     {mod.requirements.min_gpus && (
                       <span>
-                        <Zap size={10} style={{ verticalAlign: 'middle', marginRight: '3px', color: 'var(--neon-magenta)' }} />
+                        <Zap size={10} style={{ verticalAlign: 'middle', marginRight: '3px', color: 'var(--primary-light)' }} />
                         {mod.requirements.min_gpus} GPU
                       </span>
                     )}
@@ -791,7 +791,7 @@ export function Modules() {
                       </span>
                     )}
                     {mod.requirements.gpu_vram_mb && (
-                      <span style={{ color: 'var(--neon-magenta)' }}>
+                      <span style={{ color: 'var(--primary-light)' }}>
                         {(mod.requirements.gpu_vram_mb / 1024).toFixed(0)}GB VRAM
                       </span>
                     )}
@@ -943,7 +943,7 @@ export function Modules() {
                     border: '1px solid rgba(0, 255, 65, 0.3)',
                     borderRadius: 'var(--radius-sm)',
                     fontSize: '0.7rem',
-                    color: 'var(--neon-green)',
+                    color: 'var(--success)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
@@ -975,7 +975,7 @@ export function Modules() {
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                   CHAIN URI
                 </div>
-                <div style={{ color: 'var(--neon-cyan)' }}>
+                <div style={{ color: 'var(--primary)' }}>
                   {viewingModule.chain_uri}
                 </div>
               </div>
@@ -1001,7 +1001,7 @@ export function Modules() {
                         border: '1px solid rgba(0, 255, 255, 0.2)',
                         borderRadius: 'var(--radius-sm)',
                         fontSize: '0.75rem',
-                        color: 'var(--neon-cyan)',
+                        color: 'var(--primary)',
                         fontFamily: 'var(--font-mono)',
                       }}
                     >
@@ -1030,13 +1030,13 @@ export function Modules() {
                   {viewingModule.requirements.min_gpus && (
                     <div className="hardware-item">
                       <div className="hardware-label">GPUs</div>
-                      <div className="hardware-value" style={{ color: 'var(--neon-magenta)' }}>{viewingModule.requirements.min_gpus}</div>
+                      <div className="hardware-value" style={{ color: 'var(--primary-light)' }}>{viewingModule.requirements.min_gpus}</div>
                     </div>
                   )}
                   {viewingModule.requirements.gpu_vram_mb && (
                     <div className="hardware-item">
                       <div className="hardware-label">VRAM</div>
-                      <div className="hardware-value" style={{ color: 'var(--neon-magenta)' }}>{(viewingModule.requirements.gpu_vram_mb / 1024).toFixed(0)} GB</div>
+                      <div className="hardware-value" style={{ color: 'var(--primary-light)' }}>{(viewingModule.requirements.gpu_vram_mb / 1024).toFixed(0)} GB</div>
                     </div>
                   )}
                   {viewingModule.requirements.min_cpu_cores && (
@@ -1071,7 +1071,7 @@ export function Modules() {
                 </div>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Downloads</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--neon-cyan)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--primary)' }}>
                     {formatNumber(viewingModule.downloads)}
                   </div>
                 </div>
