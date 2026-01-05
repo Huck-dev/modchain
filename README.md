@@ -65,8 +65,8 @@ RhizOS is a peer-to-peer compute marketplace where users can rent GPU/CPU resour
 
 ```bash
 # Clone the repo
-git clone https://github.com/modc2/mod.git
-cd mod
+git clone https://github.com/Huck-dev/rhizos-cloud.git
+cd rhizos-cloud
 
 # Install dependencies
 pnpm install
