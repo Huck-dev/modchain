@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Box, Cpu, Zap, Globe, Lock, Star, Download, ExternalLink, Search, Bot, TrendingUp, Coins, Database, Code, Brain } from 'lucide-react';
 import { GlitchText, CyberButton, StatsCard } from '../components';
+import { useModule } from '../context/ModuleContext';
 
 interface Module {
   id: string;
@@ -405,11 +407,31 @@ const CATEGORIES = [
 ];
 
 export function Modules() {
+  const navigate = useNavigate();
+  const { setSelectedModule: setContextModule } = useModule();
+
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedModule, setSelectedModule] = useState<Module | null>(null);
+  const [viewingModule, setViewingModule] = useState<Module | null>(null);
+
+  const handleDeployModule = (mod: Module) => {
+    setContextModule({
+      id: mod.id,
+      name: mod.name,
+      description: mod.description,
+      category: mod.category,
+      runtime: mod.runtime,
+      author: mod.author,
+      repo: mod.repo,
+      requirements: mod.requirements,
+      tools: mod.tools,
+      chain_uri: mod.chain_uri,
+    });
+    setViewingModule(null);
+    navigate('/submit');
+  };
 
   useEffect(() => {
     const loadModules = async () => {
@@ -632,7 +654,7 @@ export function Modules() {
                 key={mod.id}
                 className="cyber-card hover-lift"
                 style={{ cursor: 'pointer' }}
-                onClick={() => setSelectedModule(mod)}
+                onClick={() => setViewingModule(mod)}
               >
                 <div className="cyber-card-body" style={{ padding: 'var(--gap-lg)' }}>
                   {/* Header */}
@@ -826,7 +848,7 @@ export function Modules() {
       )}
 
       {/* Module Detail Modal */}
-      {selectedModule && (
+      {viewingModule && (
         <div
           style={{
             position: 'fixed',
@@ -841,7 +863,7 @@ export function Modules() {
             zIndex: 1000,
             backdropFilter: 'blur(4px)',
           }}
-          onClick={() => setSelectedModule(null)}
+          onClick={() => setViewingModule(null)}
         >
           <div
             className="cyber-card"
@@ -856,13 +878,13 @@ export function Modules() {
             <div className="cyber-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
                 {(() => {
-                  const Icon = getCategoryIcon(selectedModule.category);
-                  return <Icon size={18} style={{ color: getCategoryColor(selectedModule.category) }} />;
+                  const Icon = getCategoryIcon(viewingModule.category);
+                  return <Icon size={18} style={{ color: getCategoryColor(viewingModule.category) }} />;
                 })()}
-                <span className="cyber-card-title">{selectedModule.name}</span>
+                <span className="cyber-card-title">{viewingModule.name}</span>
               </div>
               <button
-                onClick={() => setSelectedModule(null)}
+                onClick={() => setViewingModule(null)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -885,24 +907,24 @@ export function Modules() {
               }}>
                 <span style={{
                   padding: '0.25rem 0.5rem',
-                  background: `${getCategoryColor(selectedModule.category)}15`,
-                  border: `1px solid ${getCategoryColor(selectedModule.category)}40`,
+                  background: `${getCategoryColor(viewingModule.category)}15`,
+                  border: `1px solid ${getCategoryColor(viewingModule.category)}40`,
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '0.7rem',
-                  color: getCategoryColor(selectedModule.category),
+                  color: getCategoryColor(viewingModule.category),
                   textTransform: 'uppercase',
                 }}>
-                  {selectedModule.category.replace('-', ' ')}
+                  {viewingModule.category.replace('-', ' ')}
                 </span>
                 <span style={{
                   padding: '0.25rem 0.5rem',
-                  background: `${getRuntimeBadge(selectedModule.runtime)}20`,
-                  border: `1px solid ${getRuntimeBadge(selectedModule.runtime)}60`,
+                  background: `${getRuntimeBadge(viewingModule.runtime)}20`,
+                  border: `1px solid ${getRuntimeBadge(viewingModule.runtime)}60`,
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '0.7rem',
-                  color: getRuntimeBadge(selectedModule.runtime),
+                  color: getRuntimeBadge(viewingModule.runtime),
                 }}>
-                  {selectedModule.runtime}
+                  {viewingModule.runtime}
                 </span>
                 <span style={{
                   padding: '0.25rem 0.5rem',
@@ -912,9 +934,9 @@ export function Modules() {
                   fontSize: '0.7rem',
                   color: 'var(--text-secondary)',
                 }}>
-                  v{selectedModule.version}
+                  v{viewingModule.version}
                 </span>
-                {selectedModule.verified && (
+                {viewingModule.verified && (
                   <span style={{
                     padding: '0.25rem 0.5rem',
                     background: 'rgba(0, 255, 65, 0.1)',
@@ -937,7 +959,7 @@ export function Modules() {
                 marginBottom: 'var(--gap-lg)',
                 lineHeight: 1.5,
               }}>
-                {selectedModule.description}
+                {viewingModule.description}
               </p>
 
               {/* Chain URI */}
@@ -954,7 +976,7 @@ export function Modules() {
                   CHAIN URI
                 </div>
                 <div style={{ color: 'var(--neon-cyan)' }}>
-                  {selectedModule.chain_uri}
+                  {viewingModule.chain_uri}
                 </div>
               </div>
 
@@ -967,10 +989,10 @@ export function Modules() {
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
                 }}>
-                  Available Tools ({selectedModule.tools.length})
+                  Available Tools ({viewingModule.tools.length})
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--gap-xs)', flexWrap: 'wrap' }}>
-                  {selectedModule.tools.map(tool => (
+                  {viewingModule.tools.map(tool => (
                     <span
                       key={tool}
                       style={{
@@ -1005,28 +1027,28 @@ export function Modules() {
                   gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
                   gap: 'var(--gap-sm)',
                 }}>
-                  {selectedModule.requirements.min_gpus && (
+                  {viewingModule.requirements.min_gpus && (
                     <div className="hardware-item">
                       <div className="hardware-label">GPUs</div>
-                      <div className="hardware-value" style={{ color: 'var(--neon-magenta)' }}>{selectedModule.requirements.min_gpus}</div>
+                      <div className="hardware-value" style={{ color: 'var(--neon-magenta)' }}>{viewingModule.requirements.min_gpus}</div>
                     </div>
                   )}
-                  {selectedModule.requirements.gpu_vram_mb && (
+                  {viewingModule.requirements.gpu_vram_mb && (
                     <div className="hardware-item">
                       <div className="hardware-label">VRAM</div>
-                      <div className="hardware-value" style={{ color: 'var(--neon-magenta)' }}>{(selectedModule.requirements.gpu_vram_mb / 1024).toFixed(0)} GB</div>
+                      <div className="hardware-value" style={{ color: 'var(--neon-magenta)' }}>{(viewingModule.requirements.gpu_vram_mb / 1024).toFixed(0)} GB</div>
                     </div>
                   )}
-                  {selectedModule.requirements.min_cpu_cores && (
+                  {viewingModule.requirements.min_cpu_cores && (
                     <div className="hardware-item">
                       <div className="hardware-label">CPU</div>
-                      <div className="hardware-value">{selectedModule.requirements.min_cpu_cores} cores</div>
+                      <div className="hardware-value">{viewingModule.requirements.min_cpu_cores} cores</div>
                     </div>
                   )}
-                  {selectedModule.requirements.min_memory_mb && (
+                  {viewingModule.requirements.min_memory_mb && (
                     <div className="hardware-item">
                       <div className="hardware-label">RAM</div>
-                      <div className="hardware-value">{(selectedModule.requirements.min_memory_mb / 1024).toFixed(0)} GB</div>
+                      <div className="hardware-value">{(viewingModule.requirements.min_memory_mb / 1024).toFixed(0)} GB</div>
                     </div>
                   )}
                 </div>
@@ -1044,19 +1066,19 @@ export function Modules() {
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Stars</div>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: '#fbbf24' }}>
-                    {formatNumber(selectedModule.stars)}
+                    {formatNumber(viewingModule.stars)}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Downloads</div>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--neon-cyan)' }}>
-                    {formatNumber(selectedModule.downloads)}
+                    {formatNumber(viewingModule.downloads)}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Author</div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                    {selectedModule.author}
+                    {viewingModule.author}
                   </div>
                 </div>
               </div>
@@ -1066,23 +1088,20 @@ export function Modules() {
                 <CyberButton
                   variant="primary"
                   icon={Zap}
-                  onClick={() => {
-                    setSelectedModule(null);
-                    window.location.href = '#/submit';
-                  }}
+                  onClick={() => handleDeployModule(viewingModule)}
                 >
                   DEPLOY ON COMPUTE
                 </CyberButton>
                 <CyberButton
                   icon={ExternalLink}
-                  onClick={() => window.open(selectedModule.repo, '_blank')}
+                  onClick={() => window.open(viewingModule.repo, '_blank')}
                 >
                   VIEW SOURCE
                 </CyberButton>
-                {selectedModule.docs && (
+                {viewingModule.docs && (
                   <CyberButton
                     icon={Code}
-                    onClick={() => window.open(selectedModule.docs, '_blank')}
+                    onClick={() => window.open(viewingModule.docs, '_blank')}
                   >
                     DOCS
                   </CyberButton>

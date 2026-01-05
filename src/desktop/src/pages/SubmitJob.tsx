@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { Zap, Cpu, Clock, DollarSign, Send, ChevronRight, Check } from 'lucide-react';
-import { CyberButton } from '../components';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Zap, Cpu, Clock, DollarSign, Send, ChevronRight, Check, Box, X, Bot, TrendingUp, Coins, Database, Search, Brain } from 'lucide-react';
+import { CyberButton, GlitchText } from '../components';
+import { useModule } from '../context/ModuleContext';
 
-type ComputeType = 'gpu' | 'cpu' | 'hybrid';
-type Step = 'select' | 'configure' | 'confirm' | 'submitted';
+type Step = 'module' | 'configure' | 'confirm' | 'submitted';
 
 interface JobConfig {
-  type: ComputeType;
   hours: number;
   gpuCount: number;
   cpuCores: number;
@@ -14,31 +14,68 @@ interface JobConfig {
 }
 
 const PRICING = {
-  gpu_hour: 0.50,    // $0.50 per GPU hour
-  cpu_hour: 0.02,    // $0.02 per CPU core hour
-  memory_hour: 0.01, // $0.01 per GB hour
+  gpu_hour: 0.50,
+  cpu_hour: 0.02,
+  memory_hour: 0.01,
+};
+
+const getCategoryIcon = (category: string) => {
+  switch (category) {
+    case 'ai-agents': return Bot;
+    case 'trading': return TrendingUp;
+    case 'defi': return Coins;
+    case 'infrastructure': return Database;
+    case 'data': return Search;
+    case 'models': return Brain;
+    default: return Box;
+  }
+};
+
+const getCategoryColor = (category: string) => {
+  switch (category) {
+    case 'ai-agents': return 'var(--neon-cyan)';
+    case 'trading': return 'var(--neon-green)';
+    case 'defi': return 'var(--neon-magenta)';
+    case 'infrastructure': return '#ffff00';
+    case 'data': return '#ff6b6b';
+    case 'models': return '#a855f7';
+    default: return 'var(--text-secondary)';
+  }
 };
 
 export function SubmitJob() {
-  const [step, setStep] = useState<Step>('select');
+  const navigate = useNavigate();
+  const { selectedModule, clearModule } = useModule();
+
+  const [step, setStep] = useState<Step>(selectedModule ? 'configure' : 'module');
   const [config, setConfig] = useState<JobConfig>({
-    type: 'gpu',
     hours: 1,
-    gpuCount: 1,
-    cpuCores: 4,
-    memoryGb: 16,
+    gpuCount: selectedModule?.requirements.min_gpus || 1,
+    cpuCores: selectedModule?.requirements.min_cpu_cores || 4,
+    memoryGb: selectedModule?.requirements.min_memory_mb ? Math.ceil(selectedModule.requirements.min_memory_mb / 1024) : 16,
   });
   const [submitting, setSubmitting] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
 
+  // Update config when module changes
+  useEffect(() => {
+    if (selectedModule) {
+      setConfig({
+        hours: 1,
+        gpuCount: selectedModule.requirements.min_gpus || 0,
+        cpuCores: selectedModule.requirements.min_cpu_cores || 4,
+        memoryGb: selectedModule.requirements.min_memory_mb ? Math.ceil(selectedModule.requirements.min_memory_mb / 1024) : 16,
+      });
+      setStep('configure');
+    }
+  }, [selectedModule]);
+
   const calculateCost = () => {
     let cost = 0;
-    if (config.type === 'gpu' || config.type === 'hybrid') {
+    if (config.gpuCount > 0) {
       cost += config.gpuCount * config.hours * PRICING.gpu_hour;
     }
-    if (config.type === 'cpu' || config.type === 'hybrid') {
-      cost += config.cpuCores * config.hours * PRICING.cpu_hour;
-    }
+    cost += config.cpuCores * config.hours * PRICING.cpu_hour;
     cost += config.memoryGb * config.hours * PRICING.memory_hour;
     return cost;
   };
@@ -47,7 +84,6 @@ export function SubmitJob() {
     setSubmitting(true);
 
     try {
-      // Create account if needed, add test credits, submit job
       const accountRes = await fetch('/api/v1/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,14 +91,12 @@ export function SubmitJob() {
       });
       const account = await accountRes.json();
 
-      // Add test credits
       await fetch(`/api/v1/accounts/${account.account_id}/test-credits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount_cents: Math.ceil(calculateCost() * 100) + 1000 }),
       });
 
-      // Submit job
       const jobRes = await fetch('/api/v1/jobs', {
         method: 'POST',
         headers: {
@@ -71,15 +105,17 @@ export function SubmitJob() {
         },
         body: JSON.stringify({
           requirements: {
-            mcp_adapter: config.type === 'gpu' ? 'cuda' : 'docker',
+            mcp_adapter: selectedModule?.runtime || 'docker',
             max_cost_cents: Math.ceil(calculateCost() * 100),
             currency: 'USDC',
-            min_gpus: config.type !== 'cpu' ? config.gpuCount : 0,
+            min_gpus: config.gpuCount,
             min_cpu_cores: config.cpuCores,
             min_memory_mb: config.memoryGb * 1024,
           },
           payload: {
-            type: 'compute-session',
+            type: 'module-execution',
+            module_id: selectedModule?.id,
+            module_uri: selectedModule?.chain_uri,
             duration_hours: config.hours,
             gpu_count: config.gpuCount,
             cpu_cores: config.cpuCores,
@@ -98,50 +134,18 @@ export function SubmitJob() {
     }
   };
 
-  const ComputeTypeCard = ({ type, icon: Icon, title, desc, selected }: {
-    type: ComputeType;
-    icon: typeof Zap;
-    title: string;
-    desc: string;
-    selected: boolean;
-  }) => (
-    <div
-      onClick={() => setConfig(c => ({ ...c, type }))}
-      style={{
-        flex: 1,
-        padding: 'var(--gap-lg)',
-        background: selected
-          ? 'linear-gradient(135deg, rgba(0, 255, 255, 0.15), rgba(255, 0, 255, 0.05))'
-          : 'var(--bg-surface)',
-        border: `2px solid ${selected ? 'var(--neon-cyan)' : 'rgba(0, 255, 255, 0.1)'}`,
-        borderRadius: 'var(--radius-md)',
-        cursor: 'pointer',
-        transition: 'all 0.3s ease',
-        boxShadow: selected ? 'var(--glow-cyan)' : 'none',
-      }}
-    >
-      <Icon
-        size={32}
-        style={{
-          color: selected ? 'var(--neon-cyan)' : 'var(--text-muted)',
-          marginBottom: 'var(--gap-md)',
-        }}
-      />
-      <div style={{
-        fontFamily: 'var(--font-display)',
-        fontSize: '1rem',
-        color: selected ? 'var(--neon-cyan)' : 'var(--text-primary)',
-        marginBottom: 'var(--gap-xs)',
-      }}>
-        {title}
-      </div>
-      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-        {desc}
-      </div>
-    </div>
-  );
+  const handleChangeModule = () => {
+    clearModule();
+    navigate('/modules');
+  };
 
-  const Slider = ({ label, value, min, max, step: stepVal, unit, onChange }: {
+  const handleNewJob = () => {
+    clearModule();
+    setStep('module');
+    setJobId(null);
+  };
+
+  const Slider = ({ label, value, min, max, step: stepVal, unit, onChange, disabled, highlight }: {
     label: string;
     value: number;
     min: number;
@@ -149,20 +153,28 @@ export function SubmitJob() {
     step: number;
     unit: string;
     onChange: (v: number) => void;
+    disabled?: boolean;
+    highlight?: boolean;
   }) => (
-    <div style={{ marginBottom: 'var(--gap-lg)' }}>
+    <div style={{ marginBottom: 'var(--gap-lg)', opacity: disabled ? 0.5 : 1 }}>
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         marginBottom: 'var(--gap-sm)',
       }}>
-        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+        <span style={{
+          fontSize: '0.75rem',
+          color: highlight ? 'var(--neon-magenta)' : 'var(--text-secondary)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em'
+        }}>
           {label}
+          {highlight && <span style={{ marginLeft: '0.5rem', fontSize: '0.6rem' }}>(MODULE MIN)</span>}
         </span>
         <span style={{
           fontFamily: 'var(--font-display)',
           fontSize: '1rem',
-          color: 'var(--neon-cyan)',
+          color: highlight ? 'var(--neon-magenta)' : 'var(--neon-cyan)',
         }}>
           {value} {unit}
         </span>
@@ -174,13 +186,14 @@ export function SubmitJob() {
         step={stepVal}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
         style={{
           width: '100%',
           height: '8px',
-          background: `linear-gradient(90deg, var(--neon-cyan) ${((value - min) / (max - min)) * 100}%, var(--bg-elevated) ${((value - min) / (max - min)) * 100}%)`,
+          background: `linear-gradient(90deg, ${highlight ? 'var(--neon-magenta)' : 'var(--neon-cyan)'} ${((value - min) / (max - min)) * 100}%, var(--bg-elevated) ${((value - min) / (max - min)) * 100}%)`,
           borderRadius: '4px',
           outline: 'none',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
           WebkitAppearance: 'none',
         }}
       />
@@ -197,93 +210,228 @@ export function SubmitJob() {
     </div>
   );
 
+  const ModuleCard = () => {
+    if (!selectedModule) return null;
+    const CategoryIcon = getCategoryIcon(selectedModule.category);
+
+    return (
+      <div style={{
+        padding: 'var(--gap-lg)',
+        background: 'linear-gradient(135deg, rgba(0, 255, 255, 0.1), rgba(255, 0, 255, 0.05))',
+        border: '2px solid var(--neon-cyan)',
+        borderRadius: 'var(--radius-md)',
+        marginBottom: 'var(--gap-xl)',
+        boxShadow: 'var(--glow-cyan)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', gap: 'var(--gap-md)', alignItems: 'center' }}>
+            <div style={{
+              width: 48,
+              height: 48,
+              borderRadius: 'var(--radius-sm)',
+              background: `${getCategoryColor(selectedModule.category)}20`,
+              border: `1px solid ${getCategoryColor(selectedModule.category)}60`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <CategoryIcon size={24} style={{ color: getCategoryColor(selectedModule.category) }} />
+            </div>
+            <div>
+              <div style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '1.25rem',
+                color: 'var(--text-primary)',
+                marginBottom: '4px',
+              }}>
+                {selectedModule.name}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {selectedModule.author} • {selectedModule.runtime}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleChangeModule}
+            style={{
+              background: 'rgba(255, 0, 0, 0.1)',
+              border: '1px solid rgba(255, 0, 0, 0.3)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.5rem',
+              cursor: 'pointer',
+              color: 'var(--neon-red, #ff4444)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              fontSize: '0.7rem',
+            }}
+          >
+            <X size={14} />
+            CHANGE
+          </button>
+        </div>
+
+        <p style={{
+          fontSize: '0.8rem',
+          color: 'var(--text-secondary)',
+          marginTop: 'var(--gap-md)',
+          lineHeight: 1.4,
+        }}>
+          {selectedModule.description}
+        </p>
+
+        <div style={{
+          display: 'flex',
+          gap: 'var(--gap-xs)',
+          flexWrap: 'wrap',
+          marginTop: 'var(--gap-md)',
+        }}>
+          {selectedModule.tools.slice(0, 5).map(tool => (
+            <span
+              key={tool}
+              style={{
+                padding: '0.2rem 0.5rem',
+                background: 'var(--bg-void)',
+                border: '1px solid rgba(0, 255, 255, 0.2)',
+                borderRadius: '2px',
+                fontSize: '0.65rem',
+                color: 'var(--neon-cyan)',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              {tool}()
+            </span>
+          ))}
+          {selectedModule.tools.length > 5 && (
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+              +{selectedModule.tools.length - 5} more
+            </span>
+          )}
+        </div>
+
+        <div style={{
+          marginTop: 'var(--gap-md)',
+          padding: 'var(--gap-sm)',
+          background: 'var(--bg-void)',
+          borderRadius: 'var(--radius-sm)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.7rem',
+          color: 'var(--neon-cyan)',
+        }}>
+          {selectedModule.chain_uri}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fade-in" style={{ maxWidth: '800px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 'var(--gap-xl)' }}>
+        <GlitchText text="DEPLOY COMPUTE" as="h2" className="glitch-hover" />
+        <p style={{ color: 'var(--text-muted)', marginTop: 'var(--gap-sm)' }}>
+          {selectedModule
+            ? `Configure resources for ${selectedModule.name}`
+            : 'Select a module and configure compute resources'
+          }
+        </p>
+      </div>
+
       {/* Progress Steps */}
       <div style={{
         display: 'flex',
         justifyContent: 'center',
-        gap: 'var(--gap-xl)',
+        gap: 'var(--gap-lg)',
         marginBottom: 'var(--gap-xl)',
-        padding: 'var(--gap-lg)',
+        padding: 'var(--gap-md)',
       }}>
-        {['select', 'configure', 'confirm', 'submitted'].map((s, i) => (
-          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
-            <div style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              border: `2px solid ${step === s ? 'var(--neon-cyan)' : i < ['select', 'configure', 'confirm', 'submitted'].indexOf(step) ? 'var(--neon-green)' : 'var(--text-muted)'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.875rem',
-              color: step === s ? 'var(--neon-cyan)' : 'var(--text-muted)',
-              background: i < ['select', 'configure', 'confirm', 'submitted'].indexOf(step) ? 'rgba(0, 255, 65, 0.2)' : 'transparent',
-              boxShadow: step === s ? 'var(--glow-cyan)' : 'none',
-            }}>
-              {i < ['select', 'configure', 'confirm', 'submitted'].indexOf(step) ? <Check size={16} /> : i + 1}
+        {['module', 'configure', 'confirm', 'submitted'].map((s, i) => {
+          const steps = ['module', 'configure', 'confirm', 'submitted'];
+          const currentIndex = steps.indexOf(step);
+          const isComplete = i < currentIndex;
+          const isCurrent = s === step;
+
+          return (
+            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                border: `2px solid ${isCurrent ? 'var(--neon-cyan)' : isComplete ? 'var(--neon-green)' : 'var(--text-muted)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'var(--font-display)',
+                fontSize: '0.875rem',
+                color: isCurrent ? 'var(--neon-cyan)' : 'var(--text-muted)',
+                background: isComplete ? 'rgba(0, 255, 65, 0.2)' : 'transparent',
+                boxShadow: isCurrent ? 'var(--glow-cyan)' : 'none',
+              }}>
+                {isComplete ? <Check size={16} /> : i + 1}
+              </div>
+              <span style={{
+                fontSize: '0.7rem',
+                color: isCurrent ? 'var(--neon-cyan)' : 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+              }}>
+                {s === 'module' ? 'MODULE' : s.toUpperCase()}
+              </span>
+              {i < 3 && <ChevronRight size={16} style={{ color: 'var(--text-muted)', marginLeft: 'var(--gap-xs)' }} />}
             </div>
-            <span style={{
-              fontSize: '0.75rem',
-              color: step === s ? 'var(--neon-cyan)' : 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-            }}>
-              {s}
-            </span>
-            {i < 3 && <ChevronRight size={16} style={{ color: 'var(--text-muted)', marginLeft: 'var(--gap-sm)' }} />}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Step 1: Select Compute Type */}
-      {step === 'select' && (
+      {/* Step 1: Select Module */}
+      {step === 'module' && (
         <div className="cyber-card">
           <div className="cyber-card-header">
-            <span className="cyber-card-title">SELECT COMPUTE TYPE</span>
+            <span className="cyber-card-title">SELECT MODULE</span>
           </div>
-          <div className="cyber-card-body">
-            <div style={{ display: 'flex', gap: 'var(--gap-lg)', marginBottom: 'var(--gap-xl)' }}>
-              <ComputeTypeCard
-                type="gpu"
-                icon={Zap}
-                title="GPU COMPUTE"
-                desc="CUDA-accelerated processing for AI/ML, rendering, simulations"
-                selected={config.type === 'gpu'}
-              />
-              <ComputeTypeCard
-                type="cpu"
-                icon={Cpu}
-                title="CPU COMPUTE"
-                desc="General processing, compilation, data processing"
-                selected={config.type === 'cpu'}
-              />
-              <ComputeTypeCard
-                type="hybrid"
-                icon={Zap}
-                title="HYBRID"
-                desc="Combined GPU + CPU for complex workloads"
-                selected={config.type === 'hybrid'}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <CyberButton variant="primary" onClick={() => setStep('configure')}>
-                CONTINUE <ChevronRight size={14} style={{ marginLeft: '0.5rem' }} />
-              </CyberButton>
-            </div>
+          <div className="cyber-card-body" style={{ textAlign: 'center', padding: 'var(--gap-xl)' }}>
+            <Box size={64} style={{ color: 'var(--text-muted)', margin: '0 auto var(--gap-lg)', opacity: 0.5 }} />
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--gap-lg)' }}>
+              Browse available modules and select one to deploy on compute
+            </p>
+            <CyberButton variant="primary" icon={Box} onClick={() => navigate('/modules')}>
+              BROWSE MODULES
+            </CyberButton>
           </div>
         </div>
       )}
 
       {/* Step 2: Configure Resources */}
-      {step === 'configure' && (
+      {step === 'configure' && selectedModule && (
         <div className="cyber-card">
           <div className="cyber-card-header">
             <span className="cyber-card-title">CONFIGURE RESOURCES</span>
           </div>
           <div className="cyber-card-body">
+            <ModuleCard />
+
+            {/* Requirements Info */}
+            {(selectedModule.requirements.min_gpus || selectedModule.requirements.min_cpu_cores || selectedModule.requirements.min_memory_mb) && (
+              <div style={{
+                padding: 'var(--gap-md)',
+                background: 'rgba(255, 0, 255, 0.05)',
+                border: '1px solid rgba(255, 0, 255, 0.2)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: 'var(--gap-lg)',
+                fontSize: '0.75rem',
+              }}>
+                <strong style={{ color: 'var(--neon-magenta)' }}>MINIMUM REQUIREMENTS:</strong>
+                <span style={{ color: 'var(--text-secondary)', marginLeft: 'var(--gap-sm)' }}>
+                  {selectedModule.requirements.min_gpus && `${selectedModule.requirements.min_gpus} GPU`}
+                  {selectedModule.requirements.min_gpus && selectedModule.requirements.min_cpu_cores && ' • '}
+                  {selectedModule.requirements.min_cpu_cores && `${selectedModule.requirements.min_cpu_cores} CPU cores`}
+                  {(selectedModule.requirements.min_gpus || selectedModule.requirements.min_cpu_cores) && selectedModule.requirements.min_memory_mb && ' • '}
+                  {selectedModule.requirements.min_memory_mb && `${Math.ceil(selectedModule.requirements.min_memory_mb / 1024)}GB RAM`}
+                  {selectedModule.requirements.gpu_vram_mb && ` • ${Math.ceil(selectedModule.requirements.gpu_vram_mb / 1024)}GB VRAM`}
+                </span>
+              </div>
+            )}
+
             <Slider
               label="Duration"
               value={config.hours}
@@ -294,14 +442,15 @@ export function SubmitJob() {
               onChange={(v) => setConfig(c => ({ ...c, hours: v }))}
             />
 
-            {(config.type === 'gpu' || config.type === 'hybrid') && (
+            {(selectedModule.requirements.min_gpus || 0) > 0 && (
               <Slider
                 label="GPU Count"
                 value={config.gpuCount}
-                min={1}
+                min={selectedModule.requirements.min_gpus || 1}
                 max={8}
                 step={1}
                 unit="GPUs"
+                highlight={config.gpuCount === selectedModule.requirements.min_gpus}
                 onChange={(v) => setConfig(c => ({ ...c, gpuCount: v }))}
               />
             )}
@@ -309,20 +458,22 @@ export function SubmitJob() {
             <Slider
               label="CPU Cores"
               value={config.cpuCores}
-              min={1}
+              min={selectedModule.requirements.min_cpu_cores || 1}
               max={64}
               step={1}
               unit="cores"
+              highlight={config.cpuCores === selectedModule.requirements.min_cpu_cores}
               onChange={(v) => setConfig(c => ({ ...c, cpuCores: v }))}
             />
 
             <Slider
               label="Memory"
               value={config.memoryGb}
-              min={4}
+              min={selectedModule.requirements.min_memory_mb ? Math.ceil(selectedModule.requirements.min_memory_mb / 1024) : 4}
               max={256}
               step={4}
               unit="GB"
+              highlight={config.memoryGb === Math.ceil((selectedModule.requirements.min_memory_mb || 0) / 1024)}
               onChange={(v) => setConfig(c => ({ ...c, memoryGb: v }))}
             />
 
@@ -339,21 +490,28 @@ export function SubmitJob() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
               }}>
-                <span style={{ color: 'var(--text-secondary)' }}>ESTIMATED COST</span>
+                <div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    ESTIMATED COST
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    {config.hours}h × {config.gpuCount > 0 ? `${config.gpuCount} GPU + ` : ''}{config.cpuCores} CPU + {config.memoryGb}GB
+                  </div>
+                </div>
                 <span style={{
                   fontFamily: 'var(--font-display)',
-                  fontSize: '1.5rem',
+                  fontSize: '1.75rem',
                   color: 'var(--neon-green)',
                   textShadow: 'var(--glow-green)',
                 }}>
-                  ${calculateCost().toFixed(2)} USDC
+                  ${calculateCost().toFixed(2)} <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>USDC</span>
                 </span>
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--gap-xl)' }}>
-              <CyberButton onClick={() => setStep('select')}>
-                BACK
+              <CyberButton onClick={handleChangeModule}>
+                CHANGE MODULE
               </CyberButton>
               <CyberButton variant="primary" onClick={() => setStep('confirm')}>
                 REVIEW ORDER <ChevronRight size={14} style={{ marginLeft: '0.5rem' }} />
@@ -364,30 +522,28 @@ export function SubmitJob() {
       )}
 
       {/* Step 3: Confirm */}
-      {step === 'confirm' && (
+      {step === 'confirm' && selectedModule && (
         <div className="cyber-card">
           <div className="cyber-card-header">
-            <span className="cyber-card-title">CONFIRM ORDER</span>
+            <span className="cyber-card-title">CONFIRM DEPLOYMENT</span>
           </div>
           <div className="cyber-card-body">
+            <ModuleCard />
+
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(2, 1fr)',
               gap: 'var(--gap-md)',
               marginBottom: 'var(--gap-xl)',
             }}>
               <div className="hardware-item">
-                <div className="hardware-label">COMPUTE TYPE</div>
-                <div className="hardware-value">{config.type.toUpperCase()}</div>
-              </div>
-              <div className="hardware-item">
                 <div className="hardware-label">DURATION</div>
                 <div className="hardware-value">{config.hours} HOURS</div>
               </div>
-              {(config.type === 'gpu' || config.type === 'hybrid') && (
+              {config.gpuCount > 0 && (
                 <div className="hardware-item">
                   <div className="hardware-label">GPUs</div>
-                  <div className="hardware-value">{config.gpuCount}</div>
+                  <div className="hardware-value" style={{ color: 'var(--neon-magenta)' }}>{config.gpuCount}</div>
                 </div>
               )}
               <div className="hardware-item">
@@ -399,6 +555,10 @@ export function SubmitJob() {
                 <div className="hardware-value">{config.memoryGb} GB</div>
               </div>
               <div className="hardware-item">
+                <div className="hardware-label">RUNTIME</div>
+                <div className="hardware-value">{selectedModule.runtime.toUpperCase()}</div>
+              </div>
+              <div className="hardware-item">
                 <div className="hardware-label">TOTAL COST</div>
                 <div className="hardware-value" style={{ color: 'var(--neon-green)' }}>
                   ${calculateCost().toFixed(2)}
@@ -408,15 +568,16 @@ export function SubmitJob() {
 
             <div style={{
               padding: 'var(--gap-md)',
-              background: 'rgba(255, 0, 255, 0.05)',
-              border: '1px solid rgba(255, 0, 255, 0.2)',
+              background: 'rgba(0, 255, 255, 0.05)',
+              border: '1px solid rgba(0, 255, 255, 0.2)',
               borderRadius: 'var(--radius-sm)',
               fontSize: '0.75rem',
               color: 'var(--text-secondary)',
               marginBottom: 'var(--gap-xl)',
             }}>
-              <strong style={{ color: 'var(--neon-magenta)' }}>NOTE:</strong> Your compute session will start
-              as soon as a matching node is available. You'll receive SSH/API access credentials upon assignment.
+              <strong style={{ color: 'var(--neon-cyan)' }}>DEPLOYMENT INFO:</strong> Your module will be deployed
+              on the next available node matching these requirements. You'll receive access credentials
+              and can interact with the module's tools once deployment is complete.
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -424,7 +585,7 @@ export function SubmitJob() {
                 BACK
               </CyberButton>
               <CyberButton variant="success" icon={Send} onClick={handleSubmit} loading={submitting}>
-                SUBMIT ORDER
+                DEPLOY MODULE
               </CyberButton>
             </div>
           </div>
@@ -432,7 +593,7 @@ export function SubmitJob() {
       )}
 
       {/* Step 4: Submitted */}
-      {step === 'submitted' && (
+      {step === 'submitted' && selectedModule && (
         <div className="cyber-card" style={{ textAlign: 'center' }}>
           <div className="cyber-card-body" style={{ padding: 'var(--gap-xl) var(--gap-lg)' }}>
             <div style={{
@@ -456,11 +617,11 @@ export function SubmitJob() {
               color: 'var(--neon-green)',
               marginBottom: 'var(--gap-md)',
             }}>
-              ORDER SUBMITTED
+              DEPLOYMENT QUEUED
             </div>
 
             <div style={{ color: 'var(--text-secondary)', marginBottom: 'var(--gap-lg)' }}>
-              Your compute request is in the queue
+              {selectedModule.name} is being deployed to the network
             </div>
 
             <div style={{
@@ -469,37 +630,46 @@ export function SubmitJob() {
               border: '1px solid rgba(0, 255, 255, 0.2)',
               borderRadius: 'var(--radius-sm)',
               fontFamily: 'var(--font-mono)',
-              marginBottom: 'var(--gap-xl)',
+              marginBottom: 'var(--gap-lg)',
             }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>JOB ID</div>
-              <div style={{ color: 'var(--neon-cyan)' }}>{jobId}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '4px' }}>JOB ID</div>
+              <div style={{ color: 'var(--neon-cyan)', fontSize: '0.9rem' }}>{jobId}</div>
             </div>
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
+              gridTemplateColumns: 'repeat(4, 1fr)',
               gap: 'var(--gap-md)',
               marginBottom: 'var(--gap-xl)',
             }}>
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>DURATION</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>MODULE</div>
+                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-cyan)', fontSize: '0.9rem' }}>{selectedModule.name}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>DURATION</div>
                 <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-cyan)' }}>{config.hours}h</div>
               </div>
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>RESOURCES</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>RESOURCES</div>
                 <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-magenta)' }}>
-                  {config.type === 'gpu' ? `${config.gpuCount} GPU` : `${config.cpuCores} CPU`}
+                  {config.gpuCount > 0 ? `${config.gpuCount} GPU` : `${config.cpuCores} CPU`}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>COST</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>COST</div>
                 <div style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-green)' }}>${calculateCost().toFixed(2)}</div>
               </div>
             </div>
 
-            <CyberButton onClick={() => { setStep('select'); setJobId(null); }}>
-              SUBMIT ANOTHER
-            </CyberButton>
+            <div style={{ display: 'flex', gap: 'var(--gap-md)', justifyContent: 'center' }}>
+              <CyberButton onClick={() => navigate('/')}>
+                VIEW DASHBOARD
+              </CyberButton>
+              <CyberButton variant="primary" onClick={handleNewJob}>
+                DEPLOY ANOTHER
+              </CyberButton>
+            </div>
           </div>
         </div>
       )}
