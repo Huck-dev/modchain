@@ -1,0 +1,6 @@
+packages:
+  - 'src/orchestrator'
+  - 'src/mcp-adapters'
+  - 'src/cli'
+  - 'src/dashboard'
+  - 'src/desktop'

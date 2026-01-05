@@ -1,0 +1,27 @@
+{
+  "name": "modchain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Decentralized Hardware-Agnostic Compute Platform",
+  "scripts": {
+    "dev": "concurrently -n orch,dash -c blue,magenta \"pnpm dev:orchestrator\" \"pnpm dev:dashboard\"",
+    "dev:orchestrator": "pnpm --filter @modchain/orchestrator dev",
+    "dev:dashboard": "pnpm --filter @modchain/dashboard dev",
+    "dev:desktop": "pnpm --filter @modchain/desktop tauri:dev",
+    "dev:adapters": "pnpm --filter @modchain/mcp-adapters dev",
+    "build": "pnpm -r build",
+    "build:orchestrator": "pnpm --filter @modchain/orchestrator build",
+    "build:adapters": "pnpm --filter @modchain/mcp-adapters build",
+    "build:dashboard": "pnpm --filter @modchain/dashboard build",
+    "build:desktop": "pnpm --filter @modchain/desktop tauri:build",
+    "build:node": "cd src/node-agent && cargo build --release",
+    "test": "pnpm -r test",
+    "clean": "pnpm -r exec rm -rf dist node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "keywords": ["modchain", "compute", "decentralized", "crypto"],
+  "license": "MIT",
+  "packageManager": "pnpm@10.10.0"
+}

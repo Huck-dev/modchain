@@ -1,0 +1,59 @@
+# Modchain Node Agent Dockerfile
+# Multi-stage build for minimal image size
+
+# ============ Build Stage ============
+FROM rust:1.83-slim-bookworm AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy Cargo files first for better caching
+COPY src/node-agent/Cargo.toml src/node-agent/Cargo.lock* ./
+
+# Create dummy source to build dependencies
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo build --release && \
+    rm -rf src
+
+# Copy actual source code
+COPY src/node-agent/src ./src
+
+# Build the actual binary
+RUN touch src/main.rs && cargo build --release
+
+# ============ Runtime Stage ============
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -s /bin/bash modchain && \
+    usermod -aG docker modchain
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/target/release/modchain-node /app/modchain-node
+
+# Create config directory
+RUN mkdir -p /app/config && chown -R modchain:modchain /app
+
+USER modchain
+
+# Expose local API port
+EXPOSE 9876
+
+# Default command
+ENTRYPOINT ["/app/modchain-node"]
+CMD ["start", "--orchestrator", "http://orchestrator:8080"]

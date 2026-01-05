@@ -1,0 +1,97 @@
+# Modchain Local Development Stack
+#
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose logs -f        # View logs
+#   docker-compose down           # Stop all services
+#
+# For GPU support, use:
+#   docker-compose --profile gpu up -d
+
+version: '3.8'
+
+services:
+  # Central orchestrator
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.orchestrator
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # Example node agent (CPU only)
+  node-cpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node-agent
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - node-cpu-data:/app/data
+    environment:
+      - MODCHAIN_ORCHESTRATOR=http://orchestrator:8080
+    command: ["start", "--orchestrator", "http://orchestrator:8080"]
+    restart: unless-stopped
+
+  # GPU-enabled node (requires nvidia-docker)
+  node-gpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node-agent
+    profiles:
+      - gpu
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - node-gpu-data:/app/data
+    environment:
+      - MODCHAIN_ORCHESTRATOR=http://orchestrator:8080
+    command: ["start", "--orchestrator", "http://orchestrator:8080"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # Ollama for LLM inference (optional)
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - llm
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  node-cpu-data:
+  node-gpu-data:
+  ollama-data:
+
+networks:
+  default:
+    name: modchain
