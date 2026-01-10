@@ -476,6 +476,33 @@ app.get('/api/v1/nodes', requireAuth, (req, res) => {
   res.json({ nodes });
 });
 
+// Get nodes connected to user's workspaces (for detecting local node from web app)
+app.get('/api/v1/my-nodes', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const userWorkspaces = workspaceManager.getUserWorkspaces(session.userId);
+
+  // Collect all nodes from all user's workspaces
+  const nodeMap = new Map<string, any>();
+
+  for (const ws of userWorkspaces) {
+    const wsNodes = nodeManager.getNodesForWorkspace(ws.id);
+    for (const node of wsNodes) {
+      if (!nodeMap.has(node.id)) {
+        nodeMap.set(node.id, {
+          id: node.id,
+          workspaceId: ws.id,
+          workspaceName: ws.name,
+          available: node.available,
+          capabilities: node.capabilities,
+          connectedAt: node.connected_at,
+        });
+      }
+    }
+  }
+
+  res.json({ nodes: Array.from(nodeMap.values()) });
+});
+
 // Register a new node (HTTP endpoint for initial registration)
 app.post('/api/v1/nodes/register', (req, res) => {
   const result = RegisterNodeRequestSchema.safeParse(req.body);

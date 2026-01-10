@@ -116,40 +116,74 @@ export function NodeControl() {
     }
   }, [addLog]);
 
-  // Detect hardware (from native node if available)
+  // Detect hardware (from connected nodes via orchestrator)
   const detectHardware = useCallback(async () => {
     setDetectingHardware(true);
     setHealthStatus(prev => ({ ...prev, hardware: 'detecting' }));
-    addLog('Detecting hardware...', 'info');
+    addLog('Checking for connected nodes...', 'info');
 
     try {
-      // Try to get hardware info from a local node API
-      const res = await fetch('http://localhost:3847/hardware', {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
+      // Query orchestrator for nodes connected to user's workspaces
+      const res = await authFetch('/api/v1/my-nodes');
 
       if (res.ok) {
         const data = await res.json();
-        setHardware(data);
-        setHealthStatus(prev => ({ ...prev, hardware: 'detected', node: 'running' }));
-        addLog('Hardware detected from native node', 'success');
-        addLog(`CPU: ${data.cpu.model} (${data.cpu.cores} cores)`, 'info');
-        addLog(`RAM: ${(data.memory.total_mb / 1024).toFixed(1)} GB`, 'info');
-        if (data.gpus.length > 0) {
-          data.gpus.forEach((gpu: any) => {
-            addLog(`GPU: ${gpu.model} (${(gpu.vram_mb / 1024).toFixed(0)} GB VRAM)`, 'info');
-          });
+
+        if (data.nodes && data.nodes.length > 0) {
+          // Use the first connected node's hardware info
+          const node = data.nodes[0];
+          const caps = node.capabilities;
+
+          const hwInfo: HardwareInfo = {
+            cpu: {
+              model: caps.cpu?.model || 'Unknown',
+              cores: caps.cpu?.cores || 0,
+              threads: caps.cpu?.threads || 0,
+              frequency_mhz: caps.cpu?.frequency_mhz,
+            },
+            memory: {
+              total_mb: caps.memory?.total_mb || 0,
+              available_mb: caps.memory?.available_mb || 0,
+            },
+            gpus: (caps.gpus || []).map((g: any) => ({
+              vendor: g.vendor || 'unknown',
+              model: g.model || 'Unknown GPU',
+              vram_mb: g.vram_mb || 0,
+              driver_version: g.driver_version || 'N/A',
+            })),
+            storage: {
+              total_gb: caps.storage?.total_gb || 0,
+              available_gb: caps.storage?.available_gb || 0,
+            },
+            docker_version: caps.docker_version || null,
+            node_version: node.id,
+          };
+
+          setHardware(hwInfo);
+          setHealthStatus(prev => ({ ...prev, hardware: 'detected', node: 'running' }));
+          addLog(`Node detected: ${node.id} (${node.workspaceName})`, 'success');
+          addLog(`CPU: ${hwInfo.cpu.model} (${hwInfo.cpu.cores} cores)`, 'info');
+          addLog(`RAM: ${(hwInfo.memory.total_mb / 1024).toFixed(1)} GB`, 'info');
+          if (hwInfo.gpus.length > 0) {
+            hwInfo.gpus.forEach((gpu) => {
+              addLog(`GPU: ${gpu.model} (${(gpu.vram_mb / 1024).toFixed(0)} GB VRAM)`, 'info');
+            });
+          }
+
+          if (data.nodes.length > 1) {
+            addLog(`${data.nodes.length - 1} additional node(s) connected`, 'info');
+          }
+        } else {
+          throw new Error('No connected nodes found');
         }
       } else {
-        throw new Error('Node not responding');
+        throw new Error('Failed to query nodes');
       }
     } catch (err) {
-      // Native node not running - show browser-detectable info only
+      // No connected nodes - show prompt to install/start node
       setHealthStatus(prev => ({ ...prev, hardware: 'not_detected', node: 'not_installed' }));
-      addLog(`Native node not detected: ${err}`, 'error');
-      console.error('Hardware detection error:', err);
-      addLog('Install the native node for accurate hardware detection', 'info');
+      addLog(`No connected nodes: ${err}`, 'error');
+      addLog('Start the native node app and it will connect automatically', 'info');
 
       // Show only what browser can detect
       setHardware({

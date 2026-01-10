@@ -108,9 +108,11 @@ function createTray() {
 
 function startHttpServer() {
   httpServer = createServer(async (req, res) => {
+    // CORS headers including Private Network Access for browser security
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
     res.setHeader('Content-Type', 'application/json');
 
     if (req.method === 'OPTIONS') {
