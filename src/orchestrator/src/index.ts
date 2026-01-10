@@ -255,23 +255,16 @@ app.get('/api/v1/workspaces/:id', requireAuth, (req, res) => {
   const nodes = nodeManager.getNodesForWorkspace(workspace.id);
 
   res.json({
-    id: workspace.id,
-    name: workspace.name,
-    description: workspace.description,
-    isPrivate: workspace.isPrivate,
-    inviteCode: workspace.ownerId === session.userId ? workspace.inviteCode : undefined,
-    members: workspace.members,
-    nodes: nodes.map((n) => ({
-      id: n.id,
-      available: n.available,
-      current_jobs: n.current_jobs,
-      capabilities: {
-        gpus: n.capabilities.gpus.length,
-        cpu_cores: n.capabilities.cpu.cores,
-        memory_mb: n.capabilities.memory.total_mb,
-      },
-    })),
-    createdAt: workspace.createdAt,
+    workspace: {
+      id: workspace.id,
+      name: workspace.name,
+      description: workspace.description,
+      isPrivate: workspace.isPrivate,
+      inviteCode: workspace.ownerId === session.userId ? workspace.inviteCode : undefined,
+      members: workspace.members,
+      nodeCount: nodes.length,
+      createdAt: workspace.createdAt,
+    },
   });
 });
 
