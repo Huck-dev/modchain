@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal, Users } from 'lucide-react';
+import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal, Users, Download, Activity, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { CyberButton, ActivityLog } from '../components';
 import { authFetch } from '../App';
 
@@ -8,12 +8,14 @@ interface HardwareInfo {
     model: string;
     cores: number;
     threads: number;
+    frequency_mhz?: number;
   };
   memory: {
     total_mb: number;
     available_mb: number;
   };
   gpus: Array<{
+    vendor: string;
     model: string;
     vram_mb: number;
     driver_version: string;
@@ -23,6 +25,13 @@ interface HardwareInfo {
     available_gb: number;
   };
   docker_version: string | null;
+  node_version?: string;
+}
+
+interface HealthStatus {
+  orchestrator: 'checking' | 'online' | 'offline';
+  node: 'not_installed' | 'stopped' | 'running' | 'error';
+  hardware: 'not_detected' | 'detected' | 'detecting';
 }
 
 interface NodeState {
@@ -48,7 +57,13 @@ export function NodeControl() {
       : `ws://${window.location.host}/ws/node`,
   });
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
+  const [healthStatus, setHealthStatus] = useState<HealthStatus>({
+    orchestrator: 'checking',
+    node: 'not_installed',
+    hardware: 'not_detected',
+  });
   const [loading, setLoading] = useState(false);
+  const [detectingHardware, setDetectingHardware] = useState(false);
   const [logs, setLogs] = useState<Array<{ time: string; message: string; type: 'info' | 'success' | 'error' }>>([]);
 
   // Workspace state
@@ -80,24 +95,85 @@ export function NodeControl() {
     }
   }, []);
 
+  // Health check
+  const runHealthCheck = useCallback(async () => {
+    addLog('Running health check...', 'info');
+
+    // Check orchestrator
+    setHealthStatus(prev => ({ ...prev, orchestrator: 'checking' }));
+    try {
+      const res = await fetch('/health');
+      if (res.ok) {
+        setHealthStatus(prev => ({ ...prev, orchestrator: 'online' }));
+        addLog('Orchestrator: Online', 'success');
+      } else {
+        setHealthStatus(prev => ({ ...prev, orchestrator: 'offline' }));
+        addLog('Orchestrator: Offline', 'error');
+      }
+    } catch {
+      setHealthStatus(prev => ({ ...prev, orchestrator: 'offline' }));
+      addLog('Orchestrator: Cannot connect', 'error');
+    }
+  }, [addLog]);
+
+  // Detect hardware (from native node if available)
+  const detectHardware = useCallback(async () => {
+    setDetectingHardware(true);
+    setHealthStatus(prev => ({ ...prev, hardware: 'detecting' }));
+    addLog('Detecting hardware...', 'info');
+
+    try {
+      // Try to get hardware info from a local node API
+      const res = await fetch('http://localhost:3847/hardware', {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setHardware(data);
+        setHealthStatus(prev => ({ ...prev, hardware: 'detected', node: 'running' }));
+        addLog('Hardware detected from native node', 'success');
+        addLog(`CPU: ${data.cpu.model} (${data.cpu.cores} cores)`, 'info');
+        addLog(`RAM: ${(data.memory.total_mb / 1024).toFixed(1)} GB`, 'info');
+        if (data.gpus.length > 0) {
+          data.gpus.forEach((gpu: any) => {
+            addLog(`GPU: ${gpu.model} (${(gpu.vram_mb / 1024).toFixed(0)} GB VRAM)`, 'info');
+          });
+        }
+      } else {
+        throw new Error('Node not responding');
+      }
+    } catch {
+      // Native node not running - show browser-detectable info only
+      setHealthStatus(prev => ({ ...prev, hardware: 'not_detected', node: 'not_installed' }));
+      addLog('Native node not detected', 'error');
+      addLog('Install the native node for accurate hardware detection', 'info');
+
+      // Show only what browser can detect
+      setHardware({
+        cpu: {
+          model: 'Install native node for detection',
+          cores: navigator.hardwareConcurrency || 0,
+          threads: navigator.hardwareConcurrency || 0
+        },
+        memory: { total_mb: 0, available_mb: 0 },
+        gpus: [],
+        storage: { total_gb: 0, available_gb: 0 },
+        docker_version: null,
+      });
+    } finally {
+      setDetectingHardware(false);
+    }
+  }, [addLog]);
+
   useEffect(() => {
     loadWorkspaces();
+    runHealthCheck();
+  }, [loadWorkspaces, runHealthCheck]);
 
-    // Set mock hardware for web mode
-    setHardware({
-      cpu: { model: navigator.userAgent.includes('Win') ? 'Windows PC' : 'Linux/Mac', cores: navigator.hardwareConcurrency || 4, threads: (navigator.hardwareConcurrency || 4) * 2 },
-      memory: { total_mb: 16384, available_mb: 12000 },
-      gpus: [
-        { model: 'WebGL Renderer', vram_mb: 4096, driver_version: 'Browser' },
-      ],
-      storage: { total_gb: 500, available_gb: 250 },
-      docker_version: 'N/A (Web Mode)',
-    });
-    addLog('Running in web browser mode', 'info');
-    addLog('Select workspaces and click START to contribute compute', 'info');
-
+  useEffect(() => {
     return () => {
-      // Cleanup on unmount
       if (wsRef.current) {
         wsRef.current.close();
       }
@@ -105,7 +181,7 @@ export function NodeControl() {
         clearInterval(heartbeatRef.current);
       }
     };
-  }, [addLog, loadWorkspaces]);
+  }, []);
 
   const startNode = async () => {
     if (selectedWorkspaces.length === 0) {
@@ -113,42 +189,53 @@ export function NodeControl() {
       return;
     }
 
+    // Check if we have real hardware info
+    if (!hardware || hardware.memory.total_mb === 0) {
+      addLog('Warning: No hardware detected. Install native node for best experience.', 'error');
+    }
+
     setLoading(true);
     addLog('Connecting to orchestrator...', 'info');
 
     try {
-      // Connect via WebSocket
       const ws = new WebSocket(nodeState.orchestratorUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
         addLog('WebSocket connected', 'success');
 
-        // Register with the orchestrator
         const registerMsg = {
           type: 'register',
-          capabilities: {
+          capabilities: hardware ? {
             node_id: `web-${crypto.randomUUID().slice(0, 8)}`,
-            gpus: hardware?.gpus.map(g => ({
+            gpus: hardware.gpus.map(g => ({
+              vendor: g.vendor || 'unknown',
               model: g.model,
               vram_mb: g.vram_mb,
               supports: { cuda: false, rocm: false, vulkan: true, metal: false, opencl: true },
-            })) || [],
+            })),
             cpu: {
-              model: hardware?.cpu.model || 'Unknown',
-              cores: hardware?.cpu.cores || 4,
-              threads: hardware?.cpu.threads || 8,
-              features: ['sse4', 'avx'],
+              model: hardware.cpu.model,
+              cores: hardware.cpu.cores,
+              threads: hardware.cpu.threads,
+              features: [],
             },
             memory: {
-              total_mb: hardware?.memory.total_mb || 8192,
-              available_mb: hardware?.memory.available_mb || 4096,
+              total_mb: hardware.memory.total_mb,
+              available_mb: hardware.memory.available_mb,
             },
             storage: {
-              total_gb: hardware?.storage.total_gb || 100,
-              available_gb: hardware?.storage.available_gb || 50,
+              total_gb: hardware.storage.total_gb,
+              available_gb: hardware.storage.available_gb,
             },
-            mcp_adapters: ['docker'],
+            mcp_adapters: [],
+          } : {
+            node_id: `web-${crypto.randomUUID().slice(0, 8)}`,
+            gpus: [],
+            cpu: { model: 'Web Browser', cores: navigator.hardwareConcurrency || 1, threads: navigator.hardwareConcurrency || 1, features: [] },
+            memory: { total_mb: 1024, available_mb: 512 },
+            storage: { total_gb: 1, available_gb: 1 },
+            mcp_adapters: [],
           },
           workspace_ids: selectedWorkspaces,
         };
@@ -169,10 +256,8 @@ export function NodeControl() {
               nodeId: msg.node_id
             }));
             addLog(`Registered as node ${msg.node_id}`, 'success');
-            addLog(`Contributing to ${selectedWorkspaces.length} workspace(s)`, 'success');
             setLoading(false);
 
-            // Start heartbeat
             heartbeatRef.current = setInterval(() => {
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
@@ -184,8 +269,7 @@ export function NodeControl() {
             }, 30000);
           } else if (msg.type === 'job_assignment') {
             addLog(`Received job: ${msg.job.id}`, 'info');
-            // In web mode, we can't actually run jobs - just acknowledge
-            addLog('Web mode cannot execute jobs (display only)', 'error');
+            addLog('Web mode cannot execute jobs - use native node', 'error');
           } else if (msg.type === 'error') {
             addLog(`Error: ${msg.message}`, 'error');
           }
@@ -194,9 +278,8 @@ export function NodeControl() {
         }
       };
 
-      ws.onerror = (error) => {
-        addLog('WebSocket error - check console', 'error');
-        console.error('WebSocket error:', error);
+      ws.onerror = () => {
+        addLog('WebSocket error', 'error');
         setLoading(false);
       };
 
@@ -242,11 +325,113 @@ export function NodeControl() {
     );
   };
 
-  const formatMemory = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
+  const formatMemory = (mb: number) => mb > 0 ? `${(mb / 1024).toFixed(1)} GB` : '--';
+
+  const getServerUrl = () => {
+    return window.location.hostname === 'localhost'
+      ? 'http://localhost:8080'
+      : `http://${window.location.host}`;
+  };
+
+  const StatusIcon = ({ status }: { status: 'checking' | 'online' | 'offline' | 'not_installed' | 'stopped' | 'running' | 'error' | 'not_detected' | 'detected' | 'detecting' }) => {
+    switch (status) {
+      case 'online':
+      case 'running':
+      case 'detected':
+        return <CheckCircle size={16} style={{ color: 'var(--success)' }} />;
+      case 'offline':
+      case 'error':
+        return <XCircle size={16} style={{ color: 'var(--error)' }} />;
+      case 'not_installed':
+      case 'stopped':
+      case 'not_detected':
+        return <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />;
+      default:
+        return <Activity size={16} className="spin" style={{ color: 'var(--primary)' }} />;
+    }
+  };
 
   return (
     <div className="fade-in">
-      {/* Status Banner */}
+      {/* Health Status Banner */}
+      <div className="cyber-card" style={{ marginBottom: 'var(--gap-lg)' }}>
+        <div className="cyber-card-header">
+          <span className="cyber-card-title">
+            <Activity size={14} style={{ marginRight: '0.5rem' }} />
+            SYSTEM STATUS
+          </span>
+          <CyberButton icon={RefreshCw} onClick={runHealthCheck}>
+            HEALTH CHECK
+          </CyberButton>
+        </div>
+        <div className="cyber-card-body">
+          <div style={{ display: 'flex', gap: 'var(--gap-xl)', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
+              <StatusIcon status={healthStatus.orchestrator} />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Orchestrator:</span>
+              <span style={{
+                color: healthStatus.orchestrator === 'online' ? 'var(--success)' : 'var(--error)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.85rem',
+                textTransform: 'uppercase',
+              }}>
+                {healthStatus.orchestrator}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
+              <StatusIcon status={healthStatus.node} />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Native Node:</span>
+              <span style={{
+                color: healthStatus.node === 'running' ? 'var(--success)' :
+                       healthStatus.node === 'not_installed' ? 'var(--warning)' : 'var(--error)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.85rem',
+                textTransform: 'uppercase',
+              }}>
+                {healthStatus.node.replace('_', ' ')}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
+              <StatusIcon status={healthStatus.hardware} />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Hardware:</span>
+              <span style={{
+                color: healthStatus.hardware === 'detected' ? 'var(--success)' : 'var(--warning)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.85rem',
+                textTransform: 'uppercase',
+              }}>
+                {healthStatus.hardware.replace('_', ' ')}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Download / Install Section */}
+      {healthStatus.node === 'not_installed' && (
+        <div className="cyber-card" style={{ marginBottom: 'var(--gap-lg)', borderColor: 'var(--warning)' }}>
+          <div className="cyber-card-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--warning)', marginBottom: '4px' }}>
+                NATIVE NODE NOT DETECTED
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Install the native node for accurate hardware detection and job execution
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 'var(--gap-sm)' }}>
+              <CyberButton icon={Download} onClick={() => window.location.href = '/download'}>
+                DOWNLOAD NODE
+              </CyberButton>
+              <CyberButton variant="primary" icon={Activity} onClick={detectHardware} loading={detectingHardware}>
+                DETECT HARDWARE
+              </CyberButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Node Control Banner */}
       <div
         className="cyber-card"
         style={{
@@ -278,19 +463,23 @@ export function NodeControl() {
                 fontFamily: 'var(--font-display)',
                 fontSize: '1.25rem',
                 color: nodeState.running ? 'var(--success)' : 'var(--text-primary)',
-                letterSpacing: '0.1em',
               }}>
                 {nodeState.running ? 'NODE ACTIVE' : 'NODE OFFLINE'}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {nodeState.running
-                  ? `Node ID: ${nodeState.nodeId} • ${selectedWorkspaces.length} workspace(s)`
+                  ? `Node ID: ${nodeState.nodeId}`
                   : 'Select workspaces and start to contribute compute'
                 }
               </div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 'var(--gap-md)' }}>
+            {!nodeState.running && (
+              <CyberButton icon={Activity} onClick={detectHardware} loading={detectingHardware}>
+                DETECT HARDWARE
+              </CyberButton>
+            )}
             {nodeState.running ? (
               <CyberButton variant="danger" icon={Power} onClick={stopNode} loading={loading}>
                 STOP NODE
@@ -351,9 +540,6 @@ export function NodeControl() {
                     background: selectedWorkspaces.includes(ws.id) ? 'var(--primary)' : 'var(--text-muted)',
                   }} />
                   {ws.name}
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                    ({ws.nodeCount} nodes)
-                  </span>
                 </button>
               ))}
             </div>
@@ -366,8 +552,8 @@ export function NodeControl() {
         </div>
       </div>
 
+      {/* Hardware Info */}
       <div className="cyber-grid-layout">
-        {/* CPU Card */}
         <div className="cyber-card">
           <div className="cyber-card-header">
             <span className="cyber-card-title">
@@ -376,63 +562,73 @@ export function NodeControl() {
             </span>
           </div>
           <div className="cyber-card-body">
-            <div style={{ marginBottom: 'var(--gap-md)' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--primary)' }}>
-                {hardware?.cpu.model || 'Detecting...'}
+            {hardware && hardware.cpu.cores > 0 ? (
+              <>
+                <div style={{ marginBottom: 'var(--gap-md)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--primary)' }}>
+                    {hardware.cpu.model}
+                  </div>
+                </div>
+                <div className="hardware-grid">
+                  <div className="hardware-item">
+                    <div className="hardware-label">CORES</div>
+                    <div className="hardware-value">{hardware.cpu.cores}</div>
+                  </div>
+                  <div className="hardware-item">
+                    <div className="hardware-label">THREADS</div>
+                    <div className="hardware-value">{hardware.cpu.threads}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: 'var(--gap-md)', color: 'var(--text-muted)' }}>
+                <Cpu size={32} style={{ opacity: 0.3, marginBottom: 'var(--gap-sm)' }} />
+                <div>Click "Detect Hardware" to scan</div>
               </div>
-            </div>
-            <div className="hardware-grid">
-              <div className="hardware-item">
-                <div className="hardware-label">CORES</div>
-                <div className="hardware-value">{hardware?.cpu.cores ?? '-'}</div>
-              </div>
-              <div className="hardware-item">
-                <div className="hardware-label">THREADS</div>
-                <div className="hardware-value">{hardware?.cpu.threads ?? '-'}</div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Memory Card */}
         <div className="cyber-card">
           <div className="cyber-card-header">
             <span className="cyber-card-title">
               <HardDrive size={14} style={{ marginRight: '0.5rem' }} />
-              MEMORY
+              MEMORY & STORAGE
             </span>
           </div>
           <div className="cyber-card-body">
-            <div className="hardware-grid">
-              <div className="hardware-item">
-                <div className="hardware-label">TOTAL RAM</div>
-                <div className="hardware-value">
-                  {hardware ? formatMemory(hardware.memory.total_mb) : '-'}
+            {hardware && hardware.memory.total_mb > 0 ? (
+              <div className="hardware-grid">
+                <div className="hardware-item">
+                  <div className="hardware-label">TOTAL RAM</div>
+                  <div className="hardware-value">{formatMemory(hardware.memory.total_mb)}</div>
+                </div>
+                <div className="hardware-item">
+                  <div className="hardware-label">AVAILABLE</div>
+                  <div className="hardware-value" style={{ color: 'var(--success)' }}>
+                    {formatMemory(hardware.memory.available_mb)}
+                  </div>
+                </div>
+                <div className="hardware-item">
+                  <div className="hardware-label">STORAGE</div>
+                  <div className="hardware-value">{hardware.storage.total_gb} GB</div>
+                </div>
+                <div className="hardware-item">
+                  <div className="hardware-label">DOCKER</div>
+                  <div className="hardware-value" style={{ fontSize: '0.8rem' }}>
+                    {hardware.docker_version || 'Not found'}
+                  </div>
                 </div>
               </div>
-              <div className="hardware-item">
-                <div className="hardware-label">AVAILABLE</div>
-                <div className="hardware-value" style={{ color: 'var(--success)' }}>
-                  {hardware ? formatMemory(hardware.memory.available_mb) : '-'}
-                </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: 'var(--gap-md)', color: 'var(--text-muted)' }}>
+                <HardDrive size={32} style={{ opacity: 0.3, marginBottom: 'var(--gap-sm)' }} />
+                <div>Click "Detect Hardware" to scan</div>
               </div>
-              <div className="hardware-item">
-                <div className="hardware-label">STORAGE</div>
-                <div className="hardware-value">
-                  {hardware?.storage.total_gb ?? '-'} GB
-                </div>
-              </div>
-              <div className="hardware-item">
-                <div className="hardware-label">MODE</div>
-                <div className="hardware-value" style={{ fontSize: '0.875rem' }}>
-                  Web Browser
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* GPUs Card */}
         <div className="cyber-card" style={{ gridColumn: '1 / -1' }}>
           <div className="cyber-card-header">
             <span className="cyber-card-title">
@@ -474,14 +670,15 @@ export function NodeControl() {
                     </div>
                     <div style={{
                       padding: '4px 12px',
-                      background: 'rgba(0, 255, 65, 0.1)',
-                      border: '1px solid rgba(0, 255, 65, 0.3)',
+                      background: gpu.vendor === 'nvidia' ? 'rgba(118, 185, 0, 0.1)' : 'rgba(237, 28, 36, 0.1)',
+                      border: `1px solid ${gpu.vendor === 'nvidia' ? 'rgba(118, 185, 0, 0.3)' : 'rgba(237, 28, 36, 0.3)'}`,
                       borderRadius: '4px',
                       fontSize: '0.7rem',
-                      color: 'var(--success)',
+                      color: gpu.vendor === 'nvidia' ? '#76b900' : '#ed1c24',
                       fontFamily: 'var(--font-mono)',
+                      textTransform: 'uppercase',
                     }}>
-                      WebGL
+                      {gpu.vendor}
                     </div>
                   </div>
                 ))}
@@ -489,7 +686,7 @@ export function NodeControl() {
             ) : (
               <div className="empty-state">
                 <Zap size={32} style={{ marginBottom: '0.5rem', opacity: 0.3 }} />
-                <div>NO GPU DETECTED</div>
+                <div>{hardware ? 'NO GPU DETECTED' : 'Click "Detect Hardware" to scan'}</div>
               </div>
             )}
           </div>
@@ -505,6 +702,30 @@ export function NodeControl() {
           </div>
           <div className="cyber-card-body">
             <ActivityLog entries={logs} />
+          </div>
+        </div>
+
+        {/* CLI Command */}
+        <div className="cyber-card" style={{ gridColumn: '1 / -1' }}>
+          <div className="cyber-card-header">
+            <span className="cyber-card-title">
+              <Terminal size={14} style={{ marginRight: '0.5rem' }} />
+              RUN NATIVE NODE
+            </span>
+          </div>
+          <div className="cyber-card-body">
+            <div style={{
+              background: 'var(--bg-void)',
+              padding: 'var(--gap-md)',
+              borderRadius: 'var(--radius-sm)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.85rem',
+            }}>
+              <div style={{ color: 'var(--text-muted)', marginBottom: '8px' }}># Download and run the native node:</div>
+              <div style={{ color: 'var(--primary)' }}>
+                ./rhizos-node start -o {getServerUrl()}{selectedWorkspaces.length > 0 ? ` -w ${selectedWorkspaces[0]}` : ' -w YOUR_WORKSPACE_ID'}
+              </div>
+            </div>
           </div>
         </div>
       </div>
