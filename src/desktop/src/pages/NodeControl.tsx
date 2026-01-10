@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal, Users, Download, Activity, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal, Users, Download, Activity, CheckCircle, XCircle, AlertTriangle, Monitor, Apple, Box } from 'lucide-react';
 import { CyberButton, ActivityLog } from '../components';
 import { authFetch } from '../App';
 
@@ -327,12 +327,6 @@ export function NodeControl() {
 
   const formatMemory = (mb: number) => mb > 0 ? `${(mb / 1024).toFixed(1)} GB` : '--';
 
-  const getServerUrl = () => {
-    return window.location.hostname === 'localhost'
-      ? 'http://localhost:8080'
-      : `http://${window.location.host}`;
-  };
-
   const StatusIcon = ({ status }: { status: 'checking' | 'online' | 'offline' | 'not_installed' | 'stopped' | 'running' | 'error' | 'not_detected' | 'detected' | 'detecting' }) => {
     switch (status) {
       case 'online':
@@ -410,22 +404,136 @@ export function NodeControl() {
       {/* Download / Install Section */}
       {healthStatus.node === 'not_installed' && (
         <div className="cyber-card" style={{ marginBottom: 'var(--gap-lg)', borderColor: 'var(--warning)' }}>
-          <div className="cyber-card-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--warning)', marginBottom: '4px' }}>
-                NATIVE NODE NOT DETECTED
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Install the native node for accurate hardware detection and job execution
-              </div>
+          <div className="cyber-card-header">
+            <span className="cyber-card-title">
+              <Download size={14} style={{ marginRight: '0.5rem' }} />
+              DOWNLOAD OTHERTHING NODE
+            </span>
+            <CyberButton variant="primary" icon={Activity} onClick={detectHardware} loading={detectingHardware}>
+              DETECT EXISTING
+            </CyberButton>
+          </div>
+          <div className="cyber-card-body">
+            <div style={{ marginBottom: 'var(--gap-md)', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              Install the native node for accurate hardware detection, GPU acceleration, and job execution.
             </div>
-            <div style={{ display: 'flex', gap: 'var(--gap-sm)' }}>
-              <CyberButton icon={Download} onClick={() => window.location.href = '/download'}>
-                DOWNLOAD NODE
-              </CyberButton>
-              <CyberButton variant="primary" icon={Activity} onClick={detectHardware} loading={detectingHardware}>
-                DETECT HARDWARE
-              </CyberButton>
+            <div style={{ display: 'flex', gap: 'var(--gap-md)', flexWrap: 'wrap' }}>
+              {/* Windows */}
+              <a
+                href="/downloads/OtherThing-Node-Setup.exe"
+                download
+                style={{
+                  flex: '1 1 200px',
+                  padding: 'var(--gap-md)',
+                  background: 'linear-gradient(135deg, rgba(0, 120, 215, 0.1), rgba(0, 120, 215, 0.05))',
+                  border: '1px solid rgba(0, 120, 215, 0.3)',
+                  borderRadius: 'var(--radius-md)',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--gap-md)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#0078d7';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 120, 215, 0.2), rgba(0, 120, 215, 0.1))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(0, 120, 215, 0.3)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 120, 215, 0.1), rgba(0, 120, 215, 0.05))';
+                }}
+              >
+                <Monitor size={32} style={{ color: '#0078d7' }} />
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', color: '#0078d7', marginBottom: '2px' }}>
+                    Windows
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    .exe installer
+                  </div>
+                </div>
+                <Download size={16} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
+              </a>
+
+              {/* macOS */}
+              <a
+                href="/downloads/OtherThing-Node.dmg"
+                download
+                style={{
+                  flex: '1 1 200px',
+                  padding: 'var(--gap-md)',
+                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: 'var(--radius-md)',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--gap-md)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))';
+                }}
+              >
+                <Apple size={32} style={{ color: '#ffffff' }} />
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', color: '#ffffff', marginBottom: '2px' }}>
+                    macOS
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    .dmg installer
+                  </div>
+                </div>
+                <Download size={16} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
+              </a>
+
+              {/* Linux */}
+              <a
+                href="/downloads/OtherThing-Node.AppImage"
+                download
+                style={{
+                  flex: '1 1 200px',
+                  padding: 'var(--gap-md)',
+                  background: 'linear-gradient(135deg, rgba(255, 165, 0, 0.1), rgba(255, 165, 0, 0.05))',
+                  border: '1px solid rgba(255, 165, 0, 0.3)',
+                  borderRadius: 'var(--radius-md)',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--gap-md)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#ffa500';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 165, 0, 0.2), rgba(255, 165, 0, 0.1))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255, 165, 0, 0.3)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 165, 0, 0.1), rgba(255, 165, 0, 0.05))';
+                }}
+              >
+                <Box size={32} style={{ color: '#ffa500' }} />
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', color: '#ffa500', marginBottom: '2px' }}>
+                    Linux
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    .AppImage
+                  </div>
+                </div>
+                <Download size={16} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
+              </a>
+            </div>
+            <div style={{ marginTop: 'var(--gap-md)', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              After installing, launch the app and it will automatically connect. Then click "Detect Existing" above.
             </div>
           </div>
         </div>
@@ -705,29 +813,6 @@ export function NodeControl() {
           </div>
         </div>
 
-        {/* CLI Command */}
-        <div className="cyber-card" style={{ gridColumn: '1 / -1' }}>
-          <div className="cyber-card-header">
-            <span className="cyber-card-title">
-              <Terminal size={14} style={{ marginRight: '0.5rem' }} />
-              RUN NATIVE NODE
-            </span>
-          </div>
-          <div className="cyber-card-body">
-            <div style={{
-              background: 'var(--bg-void)',
-              padding: 'var(--gap-md)',
-              borderRadius: 'var(--radius-sm)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.85rem',
-            }}>
-              <div style={{ color: 'var(--text-muted)', marginBottom: '8px' }}># Download and run the native node:</div>
-              <div style={{ color: 'var(--primary)' }}>
-                ./rhizos-node start -o {getServerUrl()}{selectedWorkspaces.length > 0 ? ` -w ${selectedWorkspaces[0]}` : ' -w YOUR_WORKSPACE_ID'}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
