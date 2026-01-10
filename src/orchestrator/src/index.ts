@@ -476,31 +476,22 @@ app.get('/api/v1/nodes', requireAuth, (req, res) => {
   res.json({ nodes });
 });
 
-// Get nodes connected to user's workspaces (for detecting local node from web app)
+// Get all connected nodes (for detecting local node from web app)
 app.get('/api/v1/my-nodes', requireAuth, (req, res) => {
-  const session = (req as any).session;
-  const userWorkspaces = workspaceManager.getUserWorkspaces(session.userId);
+  // Return ALL connected nodes for hardware detection
+  // This allows the web app to detect nodes even before workspace association
+  const allNodes = nodeManager.getNodes();
 
-  // Collect all nodes from all user's workspaces
-  const nodeMap = new Map<string, any>();
+  const nodes = allNodes.map((node) => ({
+    id: node.id,
+    workspaceId: null,
+    workspaceName: 'Not assigned',
+    available: node.available,
+    capabilities: node.capabilities,
+    connectedAt: node.connected_at,
+  }));
 
-  for (const ws of userWorkspaces) {
-    const wsNodes = nodeManager.getNodesForWorkspace(ws.id);
-    for (const node of wsNodes) {
-      if (!nodeMap.has(node.id)) {
-        nodeMap.set(node.id, {
-          id: node.id,
-          workspaceId: ws.id,
-          workspaceName: ws.name,
-          available: node.available,
-          capabilities: node.capabilities,
-          connectedAt: node.connected_at,
-        });
-      }
-    }
-  }
-
-  res.json({ nodes: Array.from(nodeMap.values()) });
+  res.json({ nodes });
 });
 
 // Register a new node (HTTP endpoint for initial registration)
