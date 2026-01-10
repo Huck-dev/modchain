@@ -1,4 +1,5 @@
 # OtherThing Project Handoff Document
+**Last Updated**: January 2026
 
 ## Project Overview
 **OtherThing** (formerly RhizOS) is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, and contribute compute resources via native node applications.
@@ -12,7 +13,7 @@
 
 ### Deploy Commands
 ```bash
-# Pull and rebuild
+# Pull and rebuild frontend
 /tmp/remote.sh "cd /opt/rhizos-cloud && echo 'bAttlezone12a!' | sudo -S git pull"
 /tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S pnpm build"
 /tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/* && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/"
@@ -23,107 +24,108 @@
 ```
 /mnt/d/modchain/
 ├── src/
-│   ├── desktop/          # React frontend (Vite)
+│   ├── desktop/          # React frontend (Vite) - served at production URL
 │   ├── orchestrator/     # Node.js backend (Express + WebSocket)
-│   ├── node-electron/    # Native node installer (Electron) [NEW - IN PROGRESS]
+│   ├── node-electron/    # Native node installer (Electron)
 │   ├── cli/              # CLI tools
 │   └── mcp-adapters/     # MCP protocol adapters
 ├── pnpm-workspace.yaml
 └── tasks.json            # Task persistence file
 ```
 
-## Key Features Built
-
-### 1. Workspace Dashboard (`/workspace/:id`)
-- **File**: `src/desktop/src/pages/WorkspaceDetail.tsx`
-- Kanban board with drag-and-drop (Todo/In Progress/Done)
-- Console with built-in commands (help, nodes, members, stats, tasks, clear)
-- Resources tab showing connected nodes
-
-### 2. Task Management
-- **Backend**: `src/orchestrator/src/services/task-manager.ts`
-- **Endpoints**: GET/POST/PATCH/DELETE `/api/v1/workspaces/:id/tasks`
-- Persists to `tasks.json` file
-
-### 3. Node Control Page
-- **File**: `src/desktop/src/pages/NodeControl.tsx`
-- Health check system (Orchestrator/Node/Hardware status)
-- Platform-specific download buttons (Windows .exe, macOS .dmg, Linux .AppImage)
-- Hardware detection via native node API on port 3847
-- WebSocket connection to orchestrator for web-based node mode
-
-## Electron Native Node (COMPLETE)
+## Electron Native Node
 
 ### Location
 `/mnt/d/modchain/src/node-electron/`
 
-### Status
-- [x] Package.json configured with electron-builder
-- [x] TypeScript setup
-- [x] Main process (`src/main.ts`) - window, tray, IPC handlers
-- [x] Hardware detection (`src/hardware.ts`) - uses systeminformation
-- [x] Node service (`src/node-service.ts`) - WebSocket connection, job execution
-- [x] Preload script (`src/preload.ts`) - contextBridge API
-- [x] UI (`src/index.html`) - full dashboard UI
-- [x] Icons created (PNG, ICO, SVG)
-- [x] **Linux AppImage built** - `release/OtherThing-Node.AppImage` (100MB)
-- [x] **Windows .exe built** - `release/OtherThing-Node-Setup.exe` (73MB)
-- [x] **Installers uploaded to production** - `/usr/share/nginx/html/downloads/`
-- [ ] macOS .dmg build (requires macOS for signing)
+### Current Status
+- [x] Simple UI showing hardware info (CPU, RAM, GPUs, storage)
+- [x] Start/Stop node button
+- [x] HTTP API on port 3847 for web detection
+- [x] WebSocket connection to orchestrator
+- [x] Windows installer built and uploaded
+- [x] Linux AppImage built and uploaded
+- [ ] **Web app "Detect Existing" not connecting to local node** (needs debugging)
+
+### How It Works
+1. User downloads installer from web app (Node page)
+2. User installs and runs OtherThing Node
+3. Electron app detects hardware via `systeminformation` library
+4. Electron app runs HTTP server on `localhost:3847`
+5. Web app fetches `http://localhost:3847/hardware` to detect the running node
+6. User clicks "Start Node" to connect to orchestrator via WebSocket
 
 ### Build Commands
 ```bash
 cd /mnt/d/modchain/src/node-electron
-pnpm build                 # Compile TypeScript
-pnpm dist:linux           # Build Linux AppImage
-pnpm dist:win             # Build Windows installer
-pnpm dist:mac             # Build macOS dmg
+
+# Development
+pnpm build              # Compile TypeScript
+cp src/index.html dist/ # Copy HTML
+npx electron .          # Run in dev mode
+
+# Build installers (run on Windows for .exe)
+powershell.exe -ExecutionPolicy Bypass -Command "$env:Path = 'C:\Program Files\nodejs;' + $env:Path; cd D:\modchain\src\node-electron; npm run dist:win"
+
+# Linux (run from WSL)
+pnpm dist:linux
 ```
 
-### Native Node Features
-- Runs HTTP server on port 3847 for hardware detection
-- WebSocket connection to orchestrator
-- System tray integration
-- Auto-reconnect on disconnect
-- Job execution (shell commands, docker containers)
-- Hardware detection using `systeminformation` library
+### Key Files
+| File | Purpose |
+|------|---------|
+| `src/main.ts` | Electron main process, HTTP server on 3847, IPC handlers |
+| `src/hardware.ts` | Hardware detection using systeminformation |
+| `src/node-service.ts` | WebSocket connection to orchestrator |
+| `src/preload.ts` | contextBridge exposing electronAPI to renderer |
+| `src/index.html` | Simple UI with hardware display and controls |
 
-### API Endpoints (localhost:3847)
-- `GET /hardware` - Returns full hardware info (CPU, RAM, GPUs, storage)
-- `GET /status` - Returns node running status
+### HTTP API (localhost:3847)
+- `GET /hardware` - Returns CPU, RAM, GPUs, storage info
+- `GET /status` - Returns node running/connected status
 
-## Frontend Download Links
-The Node page (`NodeControl.tsx`) links to:
-- `/downloads/OtherThing-Node-Setup.exe` (Windows)
-- `/downloads/OtherThing-Node.dmg` (macOS)
-- `/downloads/OtherThing-Node.AppImage` (Linux)
+## Web App (Desktop Frontend)
 
-These files need to be uploaded to nginx's `/usr/share/nginx/html/downloads/` on production.
+### Key Pages
+| Route | File | Purpose |
+|-------|------|---------|
+| `/node` | `NodeControl.tsx` | Download installers, detect hardware, start web node |
+| `/workspace/:id` | `WorkspaceDetail.tsx` | Kanban board, console, resources |
+| `/workspaces` | `Workspace.tsx` | List/create workspaces |
 
-## Next Steps
-1. ~~Build Windows installer~~ DONE
-2. ~~Upload installers to production~~ DONE
-3. Build macOS installer: `pnpm dist:mac` (requires macOS for code signing)
-4. Test the full flow: download → install → detect hardware → start node
-5. Add auto-update functionality to Electron app
+### Node Page Flow
+1. Shows download buttons for Windows/macOS/Linux installers
+2. "Detect Existing" button fetches `http://localhost:3847/hardware`
+3. If native node detected, shows real hardware info
+4. If not, shows placeholder and prompts to download
 
 ## Download URLs (LIVE)
 - Windows: http://155.117.46.228/downloads/OtherThing-Node-Setup.exe
 - Linux: http://155.117.46.228/downloads/OtherThing-Node.AppImage
 
-## Key Files Reference
+Files are in `/usr/share/nginx/html/downloads/` on production server.
 
-| File | Purpose |
-|------|---------|
-| `src/desktop/src/pages/NodeControl.tsx` | Node page with download buttons |
-| `src/desktop/src/pages/WorkspaceDetail.tsx` | Workspace dashboard with Kanban |
-| `src/orchestrator/src/index.ts` | Main backend with all API routes |
-| `src/orchestrator/src/services/task-manager.ts` | Task CRUD operations |
-| `src/node-electron/src/main.ts` | Electron main process |
-| `src/node-electron/src/hardware.ts` | Hardware detection |
-| `src/node-electron/src/node-service.ts` | WebSocket node client |
+## Current Issue to Fix
+**Web app "Detect Existing" doesn't see the running Electron node**
 
-## Git Status
-- All changes committed to `main` branch
+Possible causes:
+1. Browser blocking localhost fetch from remote origin
+2. Port 3847 not accessible
+3. Electron app not running when testing
+
+Debug steps:
+1. Run Electron app locally
+2. Open browser console on http://155.117.46.228
+3. Try: `fetch('http://localhost:3847/hardware').then(r=>r.json()).then(console.log)`
+4. Check for CORS or network errors
+
+## Remaining Tasks
+1. Rebuild Windows installer with latest UI changes
+2. Upload new installer to production
+3. Debug web-to-local-node detection
+4. Test full flow: download → install → detect → start → connect
+
+## Git Info
 - Remote: https://github.com/Huck-dev/rhizos-cloud.git
-- Note: Commits should NOT include Claude as co-author per user preference
+- Branch: main
+- Note: Do NOT include Claude as co-author in commits
