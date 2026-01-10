@@ -27,31 +27,23 @@
    - Workspace dashboard with Kanban board
    - All deployed to production
 
-### Current Issue (IN PROGRESS)
-**Web app "Detect Existing" can't reach local Electron node**
+### Recently Resolved
+**Web app "Detect Existing" now works via orchestrator API** (Fixed Jan 10 2026)
 
-**Root Cause**: Browser security blocks HTTP sites from fetching localhost (Private Network Access policy).
+**Problem was**: Browser security blocked HTTP sites from fetching localhost (Private Network Access policy).
 
-**Error**: `The request client is not a secure context and the resource is in more-private address space 'loopback'`
+**Solution implemented**: Detect via orchestrator instead of localhost
+- Added `GET /api/v1/my-nodes` endpoint to orchestrator
+- Updated `NodeControl.tsx` to query orchestrator for connected nodes
+- When Electron node connects, it sends hardware info to orchestrator
+- Web app queries `/api/v1/my-nodes` and displays hardware from connected nodes
 
-**Solution Being Implemented**: Option 2 - Detect via orchestrator instead of localhost
-- When Electron node connects to orchestrator, it sends hardware info
-- Web app queries orchestrator API to get connected nodes for user's workspaces
-- No localhost fetch needed
-
-### Implementation Plan (NOT YET DONE)
-1. Add endpoint to orchestrator: `GET /api/v1/my-nodes`
-   - Returns all nodes connected to user's workspaces
-   - Include hardware info from node registration
-
-2. Update `NodeControl.tsx` to call `/api/v1/my-nodes` instead of `localhost:3847/hardware`
-
-3. The flow becomes:
-   - User starts Electron node
-   - Node connects to orchestrator WebSocket, sends hardware info
-   - User opens web app Node page
-   - Web app calls `/api/v1/my-nodes`
-   - If nodes found, display hardware info
+**Flow**:
+1. User starts Electron node app
+2. Node connects to orchestrator WebSocket, sends hardware capabilities
+3. User opens web app Node page
+4. Web app calls `/api/v1/my-nodes`
+5. If nodes found, displays hardware info from connected node(s)
 
 ## Key Files
 
@@ -66,13 +58,13 @@
 ### Web App
 | File | Purpose |
 |------|---------|
-| `src/desktop/src/pages/NodeControl.tsx` | Node page - needs update for orchestrator detection |
+| `src/desktop/src/pages/NodeControl.tsx` | Node page - detects nodes via `/api/v1/my-nodes` |
 | `src/desktop/src/pages/WorkspaceDetail.tsx` | Workspace dashboard with Kanban |
 
 ### Orchestrator
 | File | Purpose |
 |------|---------|
-| `src/orchestrator/src/index.ts` | Main backend - needs `/api/v1/my-nodes` endpoint |
+| `src/orchestrator/src/index.ts` | Main backend - includes `/api/v1/my-nodes` endpoint |
 
 ## Deploy Commands
 ```bash
@@ -97,10 +89,10 @@ powershell.exe -Command "Start-Process powershell -Verb RunAs -ArgumentList '-Ex
 - **Note**: Do NOT include Claude as co-author
 
 ## Next Steps
-1. Add `GET /api/v1/my-nodes` to orchestrator (line ~463 area)
-2. Update `NodeControl.tsx` detectHardware to call orchestrator
-3. Rebuild and deploy
-4. Test full flow
+1. Test the full flow: Start Electron node, visit web app, click "Detect Existing"
+2. Consider adding auto-refresh/polling to NodeControl.tsx to detect new nodes
+3. Add node count indicator to workspace cards
+4. Consider adding HTTPS (Let's Encrypt) to fully enable all browser APIs
 
 ## User's Hardware (for reference)
 - CPU: Ryzen Threadripper PRO 5995WX (64 cores, 128 threads)
