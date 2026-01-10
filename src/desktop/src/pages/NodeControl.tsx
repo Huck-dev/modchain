@@ -47,6 +47,13 @@ interface Workspace {
   nodeCount: number;
 }
 
+interface ResourceAllocation {
+  cpuCores: number;
+  ramPercent: number;
+  storageGb: number;
+  gpuVramPercent: number[];
+}
+
 export function NodeControl() {
   const [nodeState, setNodeState] = useState<NodeState>({
     running: false,
@@ -65,6 +72,15 @@ export function NodeControl() {
   const [loading, setLoading] = useState(false);
   const [detectingHardware, setDetectingHardware] = useState(false);
   const [logs, setLogs] = useState<Array<{ time: string; message: string; type: 'info' | 'success' | 'error' }>>([]);
+  const [isNativeNode, setIsNativeNode] = useState(false);
+
+  // Resource allocation state
+  const [allocation, setAllocation] = useState<ResourceAllocation>({
+    cpuCores: 0,
+    ramPercent: 50,
+    storageGb: 100,
+    gpuVramPercent: [],
+  });
 
   // Workspace state
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -161,6 +177,22 @@ export function NodeControl() {
 
           setHardware(hwInfo);
           setHealthStatus(prev => ({ ...prev, hardware: 'detected', node: 'running' }));
+          setIsNativeNode(true);
+          setNodeState(prev => ({
+            ...prev,
+            running: true,
+            connected: true,
+            nodeId: node.id,
+          }));
+
+          // Initialize resource allocation with defaults based on hardware
+          setAllocation({
+            cpuCores: Math.max(1, Math.floor(hwInfo.cpu.cores / 2)),
+            ramPercent: 50,
+            storageGb: Math.min(100, Math.floor(hwInfo.storage.available_gb / 2)),
+            gpuVramPercent: hwInfo.gpus.map(() => 80),
+          });
+
           addLog(`Node detected: ${node.id} (${node.workspaceName})`, 'success');
           addLog(`CPU: ${hwInfo.cpu.model} (${hwInfo.cpu.cores} cores)`, 'info');
           addLog(`RAM: ${(hwInfo.memory.total_mb / 1024).toFixed(1)} GB`, 'info');
@@ -182,6 +214,8 @@ export function NodeControl() {
     } catch (err) {
       // No connected nodes - show prompt to install/start node
       setHealthStatus(prev => ({ ...prev, hardware: 'not_detected', node: 'not_installed' }));
+      setIsNativeNode(false);
+      setNodeState(prev => ({ ...prev, running: false, connected: false, nodeId: null }));
       addLog(`No connected nodes: ${err}`, 'error');
       addLog('Start the native node app and it will connect automatically', 'info');
 
@@ -205,7 +239,8 @@ export function NodeControl() {
   useEffect(() => {
     loadWorkspaces();
     runHealthCheck();
-  }, [loadWorkspaces, runHealthCheck]);
+    detectHardware(); // Auto-detect nodes on mount
+  }, [loadWorkspaces, runHealthCheck, detectHardware]);
 
   useEffect(() => {
     return () => {
@@ -607,11 +642,11 @@ export function NodeControl() {
                 fontSize: '1.25rem',
                 color: nodeState.running ? 'var(--success)' : 'var(--text-primary)',
               }}>
-                {nodeState.running ? 'NODE ACTIVE' : 'NODE OFFLINE'}
+                {nodeState.running ? (isNativeNode ? 'NATIVE NODE ACTIVE' : 'NODE ACTIVE') : 'NODE OFFLINE'}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {nodeState.running
-                  ? `Node ID: ${nodeState.nodeId}`
+                  ? (isNativeNode ? `Native App Connected: ${nodeState.nodeId}` : `Node ID: ${nodeState.nodeId}`)
                   : 'Select workspaces and start to contribute compute'
                 }
               </div>
@@ -623,7 +658,11 @@ export function NodeControl() {
                 DETECT HARDWARE
               </CyberButton>
             )}
-            {nodeState.running ? (
+            {nodeState.running && isNativeNode ? (
+              <CyberButton icon={RefreshCw} onClick={detectHardware} loading={detectingHardware}>
+                REFRESH
+              </CyberButton>
+            ) : nodeState.running ? (
               <CyberButton variant="danger" icon={Power} onClick={stopNode} loading={loading}>
                 STOP NODE
               </CyberButton>
@@ -635,6 +674,120 @@ export function NodeControl() {
           </div>
         </div>
       </div>
+
+      {/* Resource Allocation - only show when hardware detected */}
+      {hardware && hardware.cpu.cores > 0 && (
+        <div className="cyber-card" style={{ marginBottom: 'var(--gap-xl)' }}>
+          <div className="cyber-card-header">
+            <span className="cyber-card-title">
+              <Cpu size={14} style={{ marginRight: '0.5rem' }} />
+              RESOURCE ALLOCATION
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Choose how much to contribute
+            </span>
+          </div>
+          <div className="cyber-card-body">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap-lg)' }}>
+              {/* CPU Cores */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    <Cpu size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                    CPU Cores
+                  </span>
+                  <span style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>
+                    {allocation.cpuCores} / {hardware.cpu.cores}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max={hardware.cpu.cores}
+                  value={allocation.cpuCores}
+                  onChange={(e) => setAllocation(prev => ({ ...prev, cpuCores: parseInt(e.target.value) }))}
+                  style={{ width: '100%', accentColor: 'var(--primary)' }}
+                />
+              </div>
+
+              {/* RAM */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    <HardDrive size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                    RAM
+                  </span>
+                  <span style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>
+                    {Math.round(hardware.memory.total_mb * allocation.ramPercent / 100 / 1024)} GB ({allocation.ramPercent}%)
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="90"
+                  value={allocation.ramPercent}
+                  onChange={(e) => setAllocation(prev => ({ ...prev, ramPercent: parseInt(e.target.value) }))}
+                  style={{ width: '100%', accentColor: 'var(--primary)' }}
+                />
+              </div>
+
+              {/* Storage */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    <HardDrive size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                    Storage
+                  </span>
+                  <span style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>
+                    {allocation.storageGb} GB / {hardware.storage.available_gb} GB available
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max={Math.max(10, hardware.storage.available_gb)}
+                  value={allocation.storageGb}
+                  onChange={(e) => setAllocation(prev => ({ ...prev, storageGb: parseInt(e.target.value) }))}
+                  style={{ width: '100%', accentColor: 'var(--primary)' }}
+                />
+              </div>
+
+              {/* GPUs */}
+              {hardware.gpus.map((gpu, i) => (
+                <div key={i}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                      <Zap size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                      {gpu.model} VRAM
+                    </span>
+                    <span style={{ color: 'var(--primary-light)', fontFamily: 'var(--font-mono)' }}>
+                      {Math.round(gpu.vram_mb * (allocation.gpuVramPercent[i] || 80) / 100 / 1024)} GB ({allocation.gpuVramPercent[i] || 80}%)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={allocation.gpuVramPercent[i] || 80}
+                    onChange={(e) => {
+                      const newPercents = [...allocation.gpuVramPercent];
+                      newPercents[i] = parseInt(e.target.value);
+                      setAllocation(prev => ({ ...prev, gpuVramPercent: newPercents }));
+                    }}
+                    style={{ width: '100%', accentColor: 'var(--primary-light)' }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 'var(--gap-lg)', padding: 'var(--gap-md)', background: 'rgba(0, 212, 255, 0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(0, 212, 255, 0.2)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Resource limits will be applied to the native node app. Changes take effect on next job assignment.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Workspace Selection */}
       <div className="cyber-card" style={{ marginBottom: 'var(--gap-xl)' }}>
