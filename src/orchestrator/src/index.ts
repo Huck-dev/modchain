@@ -477,7 +477,8 @@ app.get('/api/v1/nodes', requireAuth, (req, res) => {
 });
 
 // Get all connected nodes (for detecting local node from web app)
-app.get('/api/v1/my-nodes', requireAuth, (req, res) => {
+// No auth required - allows hardware detection before login
+app.get('/api/v1/my-nodes', (req, res) => {
   // Return ALL connected nodes for hardware detection
   // This allows the web app to detect nodes even before workspace association
   const allNodes = nodeManager.getNodes();
