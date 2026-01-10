@@ -175,7 +175,8 @@ export type JobPayload =
   | DockerJobPayload
   | LlmInferencePayload
   | ImageGenPayload
-  | CustomMcpPayload;
+  | CustomMcpPayload
+  | ModuleExecutionPayload;
 
 export interface DockerJobPayload {
   type: 'docker';
@@ -211,6 +212,20 @@ export interface CustomMcpPayload {
   adapter: string;                  // MCP adapter name
   method: string;                   // Method to call
   params: Record<string, unknown>;  // Adapter-specific params
+}
+
+export interface ModuleExecutionPayload {
+  type: 'module-execution';
+  moduleId: string;                 // e.g., "rhizos-hummingbot"
+  moduleVersion: string;            // e.g., "2.1.0"
+  config: Record<string, unknown>;  // Module-specific configuration
+  credentials: Record<string, Record<string, string>>; // Decrypted credentials
+  inputs: Record<string, JobOutputRef>; // References to upstream job outputs
+}
+
+export interface JobOutputRef {
+  jobId: string;                    // ID of the upstream job
+  outputPath?: string;              // JSONPath to specific output field
 }
 
 export interface VolumeMount {

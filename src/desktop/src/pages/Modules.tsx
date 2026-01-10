@@ -1,410 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Cpu, Zap, Globe, Lock, Star, Download, ExternalLink, Search, Bot, TrendingUp, Coins, Database, Code, Brain } from 'lucide-react';
+import { Box, Cpu, Zap, Lock, Star, Download, ExternalLink, Search, Code } from 'lucide-react';
 import { CyberButton, StatsCard } from '../components';
 import { useModule } from '../context/ModuleContext';
+import { RHIZOS_MODULES, MODULE_CATEGORIES, getCategoryColor, getCategoryIcon, ModuleDefinition } from '../data/modules';
 
-interface Module {
-  id: string;
-  name: string;
-  description: string;
-  version: string;
-  category: 'ai-agents' | 'trading' | 'defi' | 'infrastructure' | 'data' | 'models';
-  runtime: 'docker' | 'python' | 'node' | 'rust';
-  author: string;
-  repo: string;
-  verified: boolean;
-  stars: number;
-  downloads: number;
-  requirements: {
-    min_gpus?: number;
-    min_cpu_cores?: number;
-    min_memory_mb?: number;
-    gpu_vram_mb?: number;
-  };
-  tools: string[];
-  chain_uri: string;
-  docs?: string;
-}
-
-// Modules from commune-ai ecosystem
-const COMMUNE_MODULES: Module[] = [
-  // AI Agents
-  {
-    id: 'commune-eliza',
-    name: 'Eliza',
-    description: 'Conversational AI agent for Twitter, Discord, and Telegram. Multi-platform autonomous agent with memory and document ingestion.',
-    version: '1.0.0',
-    category: 'ai-agents',
-    runtime: 'node',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/eliza',
-    verified: true,
-    stars: 2847,
-    downloads: 45200,
-    requirements: { min_cpu_cores: 4, min_memory_mb: 8192 },
-    tools: ['chat', 'post_tweet', 'send_discord', 'send_telegram', 'remember', 'search_docs'],
-    chain_uri: 'chain://commune-eliza',
-    docs: 'https://elizaos.github.io/eliza/',
-  },
-  {
-    id: 'commune-sentience',
-    name: 'Sentience',
-    description: 'Build verifiable AI agents with on-chain attestations. TEE-based execution with cryptographic proof of inference.',
-    version: '0.9.0',
-    category: 'ai-agents',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/sentience',
-    verified: true,
-    stars: 1523,
-    downloads: 23400,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 4096 },
-    tools: ['verified_inference', 'verify_signature', 'get_attestation', 'submit_proof'],
-    chain_uri: 'chain://commune-sentience',
-  },
-  {
-    id: 'commune-hedgy',
-    name: 'Hedgy',
-    description: 'AI Hedge Fund with 15 specialized agents including Warren Buffett, Charlie Munger, and Cathie Wood investment styles.',
-    version: '1.2.0',
-    category: 'ai-agents',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/hedgy',
-    verified: true,
-    stars: 892,
-    downloads: 12100,
-    requirements: { min_cpu_cores: 4, min_memory_mb: 8192 },
-    tools: ['analyze_ticker', 'backtest', 'get_signals', 'portfolio_optimize', 'risk_assess'],
-    chain_uri: 'chain://commune-hedgy',
-  },
-  {
-    id: 'commune-swarms',
-    name: 'Swarms',
-    description: 'Multi-agent orchestration system for coordinating autonomous AI agents working together.',
-    version: '2.0.0',
-    category: 'ai-agents',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 567,
-    downloads: 8900,
-    requirements: { min_cpu_cores: 8, min_memory_mb: 16384 },
-    tools: ['spawn_agent', 'coordinate', 'distribute_task', 'aggregate_results'],
-    chain_uri: 'chain://commune-swarms',
-  },
-  {
-    id: 'commune-godmode',
-    name: 'GodMode',
-    description: 'Fully autonomous agent with unrestricted capabilities for complex multi-step tasks.',
-    version: '0.5.0',
-    category: 'ai-agents',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: false,
-    stars: 423,
-    downloads: 5600,
-    requirements: { min_gpus: 1, min_memory_mb: 32768, gpu_vram_mb: 24000 },
-    tools: ['execute', 'plan', 'browse', 'code', 'shell'],
-    chain_uri: 'chain://commune-godmode',
-  },
-
-  // Trading Bots
-  {
-    id: 'commune-hummingbot',
-    name: 'Hummingbot',
-    description: 'High-frequency crypto trading bot framework. Deploy across 140+ exchanges with $34B+ annual volume.',
-    version: '2.1.0',
-    category: 'trading',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/hummingbot',
-    verified: true,
-    stars: 7234,
-    downloads: 156000,
-    requirements: { min_cpu_cores: 4, min_memory_mb: 8192 },
-    tools: ['create_strategy', 'start_bot', 'stop_bot', 'get_orders', 'market_make', 'arbitrage'],
-    chain_uri: 'chain://commune-hummingbot',
-    docs: 'https://hummingbot.org/docs/',
-  },
-  {
-    id: 'commune-nautilus',
-    name: 'Nautilus Trader',
-    description: 'High-performance algorithmic trading platform with event-driven backtesting engine.',
-    version: '1.8.0',
-    category: 'trading',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/nautilus_trader',
-    verified: true,
-    stars: 1876,
-    downloads: 34500,
-    requirements: { min_cpu_cores: 8, min_memory_mb: 16384 },
-    tools: ['backtest', 'live_trade', 'analyze', 'optimize_strategy', 'risk_manage'],
-    chain_uri: 'chain://commune-nautilus',
-  },
-  {
-    id: 'commune-hyperliquid',
-    name: 'Hyperliquid SDK',
-    description: 'SDK for Hyperliquid perpetuals DEX. High-speed trading with on-chain settlement.',
-    version: '1.0.0',
-    category: 'trading',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/hyperliquid',
-    verified: true,
-    stars: 234,
-    downloads: 8700,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 4096 },
-    tools: ['place_order', 'cancel_order', 'get_positions', 'get_funding', 'leverage_set'],
-    chain_uri: 'chain://commune-hyperliquid',
-  },
-  {
-    id: 'commune-raydium',
-    name: 'Raydium Swap',
-    description: 'Raydium AMM integration for Solana. Swap tokens via AMM v4 and CPMM pools.',
-    version: '0.8.0',
-    category: 'trading',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/raydium',
-    verified: true,
-    stars: 189,
-    downloads: 4500,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 2048 },
-    tools: ['swap', 'get_quote', 'add_liquidity', 'remove_liquidity', 'get_pools'],
-    chain_uri: 'chain://commune-raydium',
-  },
-
-  // DeFi
-  {
-    id: 'commune-uniswap',
-    name: 'Uniswap',
-    description: 'Uniswap V3 integration for Ethereum DEX trading with concentrated liquidity.',
-    version: '3.0.0',
-    category: 'defi',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 456,
-    downloads: 23000,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 4096 },
-    tools: ['swap', 'add_liquidity', 'remove_liquidity', 'get_price', 'get_pool_info'],
-    chain_uri: 'chain://commune-uniswap',
-  },
-  {
-    id: 'commune-bridge',
-    name: 'Cross-Chain Bridge',
-    description: 'Cross-chain asset bridge for moving tokens between Ethereum, Solana, and other chains.',
-    version: '1.0.0',
-    category: 'defi',
-    runtime: 'rust',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 345,
-    downloads: 12000,
-    requirements: { min_cpu_cores: 4, min_memory_mb: 8192 },
-    tools: ['bridge_tokens', 'get_quote', 'track_transfer', 'verify_receipt'],
-    chain_uri: 'chain://commune-bridge',
-  },
-  {
-    id: 'commune-lend',
-    name: 'Lending Protocol',
-    description: 'DeFi lending and borrowing protocol integration. Supply assets, borrow, and earn yield.',
-    version: '1.5.0',
-    category: 'defi',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 234,
-    downloads: 8900,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 4096 },
-    tools: ['supply', 'borrow', 'repay', 'withdraw', 'get_rates', 'get_health'],
-    chain_uri: 'chain://commune-lend',
-  },
-  {
-    id: 'commune-polymarket',
-    name: 'Polymarket',
-    description: 'Prediction market integration. Trade on real-world event outcomes.',
-    version: '1.0.0',
-    category: 'defi',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 567,
-    downloads: 15600,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 2048 },
-    tools: ['get_markets', 'place_bet', 'get_positions', 'cash_out', 'get_odds'],
-    chain_uri: 'chain://commune-polymarket',
-  },
-
-  // Infrastructure
-  {
-    id: 'commune-ipfs',
-    name: 'IPFS Storage',
-    description: 'Distributed IPFS storage with pinning, retrieval, and content addressing.',
-    version: '2.0.0',
-    category: 'infrastructure',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 345,
-    downloads: 34000,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 4096 },
-    tools: ['pin', 'unpin', 'get', 'add', 'stat', 'ls'],
-    chain_uri: 'chain://commune-ipfs',
-  },
-  {
-    id: 'commune-supabase',
-    name: 'Supabase',
-    description: 'Supabase backend integration for database, auth, and realtime subscriptions.',
-    version: '1.2.0',
-    category: 'infrastructure',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 234,
-    downloads: 12000,
-    requirements: { min_cpu_cores: 1, min_memory_mb: 1024 },
-    tools: ['query', 'insert', 'update', 'delete', 'subscribe', 'auth'],
-    chain_uri: 'chain://commune-supabase',
-  },
-  {
-    id: 'commune-docker',
-    name: 'Docker Runtime',
-    description: 'Docker container orchestration for running isolated compute workloads.',
-    version: '1.0.0',
-    category: 'infrastructure',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 189,
-    downloads: 45000,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 4096 },
-    tools: ['run', 'stop', 'logs', 'exec', 'build', 'push'],
-    chain_uri: 'chain://commune-docker',
-  },
-
-  // Data & Scraping
-  {
-    id: 'commune-scrapy',
-    name: 'Scrapy',
-    description: 'Web crawling and scraping framework for large-scale data extraction.',
-    version: '2.11.0',
-    category: 'data',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/scrapy',
-    verified: true,
-    stars: 52000,
-    downloads: 890000,
-    requirements: { min_cpu_cores: 4, min_memory_mb: 8192 },
-    tools: ['crawl', 'scrape', 'parse', 'export', 'pipeline'],
-    chain_uri: 'chain://commune-scrapy',
-  },
-  {
-    id: 'commune-social-analyzer',
-    name: 'Social Analyzer',
-    description: 'Profile analysis across 1000+ social media platforms for OSINT and research.',
-    version: '1.0.0',
-    category: 'data',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/social-analyzer',
-    verified: true,
-    stars: 11200,
-    downloads: 67000,
-    requirements: { min_cpu_cores: 4, min_memory_mb: 8192 },
-    tools: ['search_username', 'analyze_profile', 'find_accounts', 'export_report'],
-    chain_uri: 'chain://commune-social-analyzer',
-  },
-  {
-    id: 'commune-summarize',
-    name: 'Summarizer',
-    description: 'Text summarization using LLMs. Compress documents, articles, and conversations.',
-    version: '1.0.0',
-    category: 'data',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/modules',
-    verified: true,
-    stars: 234,
-    downloads: 12000,
-    requirements: { min_cpu_cores: 2, min_memory_mb: 4096 },
-    tools: ['summarize', 'extract_key_points', 'compress', 'batch_summarize'],
-    chain_uri: 'chain://commune-summarize',
-  },
-
-  // AI Models
-  {
-    id: 'commune-hrm',
-    name: 'HRM',
-    description: 'Hierarchical Reasoning Model for complex multi-step reasoning tasks.',
-    version: '1.0.0',
-    category: 'models',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/HRM',
-    verified: true,
-    stars: 456,
-    downloads: 8900,
-    requirements: { min_gpus: 1, min_memory_mb: 32768, gpu_vram_mb: 16000 },
-    tools: ['reason', 'plan', 'decompose', 'synthesize'],
-    chain_uri: 'chain://commune-hrm',
-  },
-  {
-    id: 'commune-bittensor',
-    name: 'Bittensor',
-    description: 'Internet-scale neural networks. Decentralized AI with incentivized inference.',
-    version: '7.0.0',
-    category: 'models',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/bittensor',
-    verified: true,
-    stars: 1234,
-    downloads: 45000,
-    requirements: { min_gpus: 1, min_memory_mb: 16384, gpu_vram_mb: 8000 },
-    tools: ['query', 'mine', 'validate', 'stake', 'register'],
-    chain_uri: 'chain://commune-bittensor',
-  },
-  {
-    id: 'commune-livecodebench',
-    name: 'LiveCodeBench',
-    description: 'Code evaluation framework for benchmarking LLMs on programming tasks.',
-    version: '1.0.0',
-    category: 'models',
-    runtime: 'python',
-    author: 'commune-ai',
-    repo: 'https://github.com/commune-ai/LiveCodeBench',
-    verified: true,
-    stars: 678,
-    downloads: 23000,
-    requirements: { min_cpu_cores: 8, min_memory_mb: 16384 },
-    tools: ['evaluate', 'benchmark', 'compare_models', 'run_tests'],
-    chain_uri: 'chain://commune-livecodebench',
-  },
-];
-
-const CATEGORIES = [
-  { id: 'all', label: 'ALL', icon: Box, count: 0 },
-  { id: 'ai-agents', label: 'AI AGENTS', icon: Bot, count: 0 },
-  { id: 'trading', label: 'TRADING', icon: TrendingUp, count: 0 },
-  { id: 'defi', label: 'DEFI', icon: Coins, count: 0 },
-  { id: 'infrastructure', label: 'INFRA', icon: Database, count: 0 },
-  { id: 'data', label: 'DATA', icon: Search, count: 0 },
-  { id: 'models', label: 'MODELS', icon: Brain, count: 0 },
-];
+// Use ModuleDefinition as the Module type
+type Module = ModuleDefinition;
 
 export function Modules() {
   const navigate = useNavigate();
@@ -436,8 +38,8 @@ export function Modules() {
   useEffect(() => {
     const loadModules = async () => {
       setLoading(true);
-      await new Promise(r => setTimeout(r, 600));
-      setModules(COMMUNE_MODULES);
+      await new Promise(r => setTimeout(r, 300));
+      setModules(RHIZOS_MODULES);
       setLoading(false);
     };
     loadModules();
@@ -453,7 +55,7 @@ export function Modules() {
   });
 
   // Calculate category counts
-  const categoryCounts = CATEGORIES.map(cat => ({
+  const categoryCounts = MODULE_CATEGORIES.map(cat => ({
     ...cat,
     count: cat.id === 'all' ? modules.length : modules.filter(m => m.category === cat.id).length,
   }));
@@ -463,30 +65,6 @@ export function Modules() {
     verified: modules.filter(m => m.verified).length,
     agents: modules.filter(m => m.category === 'ai-agents').length,
     totalDownloads: modules.reduce((acc, m) => acc + m.downloads, 0),
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'ai-agents': return 'var(--primary)';
-      case 'trading': return 'var(--success)';
-      case 'defi': return 'var(--primary-light)';
-      case 'infrastructure': return 'var(--warning)';
-      case 'data': return '#ff6b6b';
-      case 'models': return '#a855f7';
-      default: return 'var(--text-secondary)';
-    }
-  };
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'ai-agents': return Bot;
-      case 'trading': return TrendingUp;
-      case 'defi': return Coins;
-      case 'infrastructure': return Database;
-      case 'data': return Search;
-      case 'models': return Brain;
-      default: return Box;
-    }
   };
 
   const formatNumber = (n: number) => {
@@ -521,25 +99,25 @@ export function Modules() {
           label="Total Modules"
           value={stats.total}
           icon={Box}
-          color="cyan"
+          color="primary"
         />
         <StatsCard
           label="Verified"
           value={stats.verified}
           icon={Lock}
-          color="green"
+          color="success"
         />
         <StatsCard
           label="AI Agents"
           value={stats.agents}
-          icon={Bot}
-          color="magenta"
+          icon={getCategoryIcon('ai-agents')}
+          color="secondary"
         />
         <StatsCard
           label="Total Downloads"
           value={formatNumber(stats.totalDownloads)}
           icon={Download}
-          color="cyan"
+          color="primary"
         />
       </div>
 
@@ -587,44 +165,47 @@ export function Modules() {
 
         {/* Category Filter */}
         <div style={{ display: 'flex', gap: 'var(--gap-xs)', flexWrap: 'wrap' }}>
-          {categoryCounts.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              style={{
-                padding: '0.5rem 0.75rem',
-                background: selectedCategory === cat.id
-                  ? 'rgba(0, 255, 255, 0.15)'
-                  : 'var(--bg-surface)',
-                border: `1px solid ${selectedCategory === cat.id
-                  ? 'var(--primary)'
-                  : 'rgba(0, 255, 255, 0.1)'}`,
-                borderRadius: 'var(--radius-sm)',
-                color: selectedCategory === cat.id
-                  ? 'var(--primary)'
-                  : 'var(--text-secondary)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.65rem',
-                letterSpacing: '0.05em',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-              }}
-            >
-              <cat.icon size={11} />
-              {cat.label}
-              <span style={{
-                background: 'rgba(0, 255, 255, 0.2)',
-                padding: '0.1rem 0.3rem',
-                borderRadius: '2px',
-                fontSize: '0.6rem',
-              }}>
-                {cat.count}
-              </span>
-            </button>
-          ))}
+          {categoryCounts.map(cat => {
+            const Icon = getCategoryIcon(cat.id);
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  background: selectedCategory === cat.id
+                    ? 'rgba(0, 255, 255, 0.15)'
+                    : 'var(--bg-surface)',
+                  border: `1px solid ${selectedCategory === cat.id
+                    ? 'var(--primary)'
+                    : 'rgba(0, 255, 255, 0.1)'}`,
+                  borderRadius: 'var(--radius-sm)',
+                  color: selectedCategory === cat.id
+                    ? 'var(--primary)'
+                    : 'var(--text-secondary)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.65rem',
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <Icon size={11} />
+                {cat.label}
+                <span style={{
+                  background: 'rgba(0, 255, 255, 0.2)',
+                  padding: '0.1rem 0.3rem',
+                  borderRadius: '2px',
+                  fontSize: '0.6rem',
+                }}>
+                  {cat.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -639,7 +220,7 @@ export function Modules() {
             borderRadius: '50%',
             margin: '0 auto 1rem',
           }} />
-          Loading commune-ai modules...
+          Loading modules...
         </div>
       ) : (
         <div style={{
@@ -648,7 +229,7 @@ export function Modules() {
           gap: 'var(--gap-lg)',
         }}>
           {filteredModules.map(mod => {
-            const CategoryIcon = getCategoryIcon(mod.category);
+            const Icon = getCategoryIcon(mod.category);
             return (
               <div
                 key={mod.id}
@@ -675,7 +256,7 @@ export function Modules() {
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}>
-                        <CategoryIcon size={18} style={{ color: getCategoryColor(mod.category) }} />
+                        <Icon size={18} style={{ color: getCategoryColor(mod.category) }} />
                       </div>
                       <div>
                         <div style={{

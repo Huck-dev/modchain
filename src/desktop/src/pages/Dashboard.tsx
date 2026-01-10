@@ -125,26 +125,25 @@ export function Dashboard() {
           value={stats?.nodes.total_nodes ?? 0}
           label="NODES ONLINE"
           icon={Server}
-          color="cyan"
-          pulse={stats?.nodes.total_nodes !== undefined && stats.nodes.total_nodes > 0}
+          color="primary"
         />
         <StatsCard
           value={stats?.nodes.total_gpus ?? 0}
           label="TOTAL GPUS"
           icon={Zap}
-          color="magenta"
+          color="secondary"
         />
         <StatsCard
           value={stats?.jobs.running_jobs ?? 0}
           label="JOBS RUNNING"
           icon={Activity}
-          color="green"
+          color="success"
         />
         <StatsCard
           value={formatCurrency(paymentStats?.total_volume_cents ?? 0)}
           label="TOTAL VOLUME"
           icon={DollarSign}
-          color="yellow"
+          color="warning"
         />
       </div>
 

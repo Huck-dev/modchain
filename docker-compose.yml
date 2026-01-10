@@ -7,6 +7,9 @@
 #
 # For GPU support, use:
 #   docker-compose --profile gpu up -d
+#
+# For public access (nginx):
+#   docker-compose --profile public up -d
 
 version: '3.8'
 
@@ -21,11 +24,29 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=8080
+      - KEYS_FILE=/app/keys.json
+    volumes:
+      - ./keys.json:/app/keys.json
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
       timeout: 3s
       retries: 3
+    restart: unless-stopped
+
+  # Nginx reverse proxy for public access
+  nginx:
+    image: nginx:alpine
+    profiles:
+      - public
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./src/desktop/dist:/usr/share/nginx/html:ro
+    depends_on:
+      orchestrator:
+        condition: service_healthy
     restart: unless-stopped
 
   # Example node agent (CPU only)

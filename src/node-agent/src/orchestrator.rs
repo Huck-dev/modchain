@@ -22,6 +22,8 @@ pub enum NodeMessage {
     Register {
         capabilities: NodeCapabilities,
         auth_token: Option<String>,
+        #[serde(skip_serializing_if = "Vec::is_empty", default)]
+        workspace_ids: Vec<String>,
     },
 
     /// Heartbeat to keep connection alive
@@ -141,6 +143,7 @@ pub struct NodeConnection {
     capabilities: NodeCapabilities,
     config: NodeConfig,
     executor: JobExecutor,
+    workspace_ids: Vec<String>,
 }
 
 impl NodeConnection {
@@ -148,6 +151,7 @@ impl NodeConnection {
         orchestrator_url: &str,
         capabilities: NodeCapabilities,
         config: NodeConfig,
+        workspace_ids: Vec<String>,
     ) -> Result<Self> {
         let executor = JobExecutor::new(&config).await?;
 
@@ -156,6 +160,7 @@ impl NodeConnection {
             capabilities,
             config,
             executor,
+            workspace_ids,
         })
     }
 
@@ -192,6 +197,7 @@ impl NodeConnection {
         let register_msg = NodeMessage::Register {
             capabilities: self.capabilities.clone(),
             auth_token: self.config.auth_token.clone(),
+            workspace_ids: self.workspace_ids.clone(),
         };
         let msg_json = serde_json::to_string(&register_msg)?;
         write.send(Message::Text(msg_json.into())).await?;

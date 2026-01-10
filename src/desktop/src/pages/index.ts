@@ -5,3 +5,4 @@ export { SubmitJob } from './SubmitJob';
 export { Modules } from './Modules';
 export { Deploy } from './Deploy';
 export { FlowBuilder } from './FlowBuilder';
+export { Login } from './Login';

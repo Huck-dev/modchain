@@ -4,23 +4,24 @@ interface StatsCardProps {
   value: string | number;
   label: string;
   icon?: LucideIcon;
-  color?: 'primary' | 'secondary' | 'success' | 'warning';
+  color?: string;
   pulse?: boolean;
 }
 
-const colorStyles = {
-  primary: { color: 'var(--primary)' },
-  secondary: { color: 'var(--primary-light)' },
-  success: { color: 'var(--success)' },
-  warning: { color: 'var(--warning)' },
-};
+function getColor(color?: string): string {
+  switch (color) {
+    case 'primary': return 'var(--primary)';
+    case 'secondary': return 'var(--primary-light)';
+    case 'success': return 'var(--success)';
+    case 'warning': return 'var(--warning)';
+    default: return 'var(--primary)';
+  }
+}
 
-export function StatsCard({ value, label, icon: Icon, color = 'primary', pulse }: StatsCardProps) {
-  const style = colorStyles[color];
-
+export function StatsCard({ value, label, icon: Icon, color, pulse }: StatsCardProps) {
   return (
-    <div className={`stat-card hover-lift`}>
-      <div className="stat-value" style={{ color: style.color }}>
+    <div className="stat-card hover-lift">
+      <div className="stat-value" style={{ color: getColor(color) }}>
         {value}
       </div>
       <div className="stat-label">{label}</div>

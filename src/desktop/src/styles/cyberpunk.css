@@ -196,6 +196,35 @@ body {
   background: var(--error);
 }
 
+.status-divider {
+  color: var(--text-muted);
+  margin: 0 var(--gap-xs);
+}
+
+.status-user {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: var(--gap-xs);
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+}
+
 /* Main Content */
 .app-main {
   flex: 1;

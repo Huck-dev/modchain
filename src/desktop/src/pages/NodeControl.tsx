@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal, Users } from 'lucide-react';
 import { CyberButton, ActivityLog } from '../components';
+import { authFetch } from '../App';
 
 interface HardwareInfo {
   cpu: {
@@ -31,75 +32,214 @@ interface NodeState {
   orchestratorUrl: string;
 }
 
+interface Workspace {
+  id: string;
+  name: string;
+  nodeCount: number;
+}
+
 export function NodeControl() {
   const [nodeState, setNodeState] = useState<NodeState>({
     running: false,
     connected: false,
     nodeId: null,
-    orchestratorUrl: 'http://localhost:8080',
+    orchestratorUrl: window.location.hostname === 'localhost'
+      ? 'ws://localhost:8080/ws/node'
+      : `ws://${window.location.host}/ws/node`,
   });
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<Array<{ time: string; message: string; type: 'info' | 'success' | 'error' }>>([]);
 
-  const addLog = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
+  // Workspace state
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [selectedWorkspaces, setSelectedWorkspaces] = useState<string[]>([]);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
+
+  const addLog = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
     setLogs(prev => [{ time, message, type }, ...prev].slice(0, 100));
-  };
+  }, []);
 
-  useEffect(() => {
-    // Check if Tauri is available
-    if (typeof window !== 'undefined' && '__TAURI__' in window) {
-      checkNodeStatus();
-      fetchHardware();
-    } else {
-      // Mock data for web preview
-      setHardware({
-        cpu: { model: 'AMD Ryzen Threadripper PRO 5995WX', cores: 64, threads: 128 },
-        memory: { total_mb: 201261, available_mb: 195000 },
-        gpus: [
-          { model: 'NVIDIA GeForce RTX 3070', vram_mb: 8192, driver_version: '591.59' },
-          { model: 'NVIDIA GeForce RTX 2060 SUPER', vram_mb: 8192, driver_version: '591.59' },
-        ],
-        storage: { total_gb: 14904, available_gb: 14725 },
-        docker_version: '28.1.1',
-      });
-      addLog('Running in web preview mode', 'info');
+  // Load workspaces
+  const loadWorkspaces = useCallback(async () => {
+    setLoadingWorkspaces(true);
+    try {
+      const res = await authFetch('/api/v1/workspaces');
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspaces(data.workspaces);
+      }
+    } catch (err) {
+      console.error('Failed to load workspaces:', err);
+    } finally {
+      setLoadingWorkspaces(false);
     }
   }, []);
 
-  const checkNodeStatus = async () => {
-    // This will be implemented with Tauri IPC
-    addLog('Checking node status...', 'info');
-  };
+  useEffect(() => {
+    loadWorkspaces();
 
-  const fetchHardware = async () => {
-    // This will be implemented with Tauri IPC
-    addLog('Detecting hardware...', 'info');
-  };
+    // Set mock hardware for web mode
+    setHardware({
+      cpu: { model: navigator.userAgent.includes('Win') ? 'Windows PC' : 'Linux/Mac', cores: navigator.hardwareConcurrency || 4, threads: (navigator.hardwareConcurrency || 4) * 2 },
+      memory: { total_mb: 16384, available_mb: 12000 },
+      gpus: [
+        { model: 'WebGL Renderer', vram_mb: 4096, driver_version: 'Browser' },
+      ],
+      storage: { total_gb: 500, available_gb: 250 },
+      docker_version: 'N/A (Web Mode)',
+    });
+    addLog('Running in web browser mode', 'info');
+    addLog('Select workspaces and click START to contribute compute', 'info');
+
+    return () => {
+      // Cleanup on unmount
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+      }
+    };
+  }, [addLog, loadWorkspaces]);
 
   const startNode = async () => {
+    if (selectedWorkspaces.length === 0) {
+      addLog('Please select at least one workspace to join', 'error');
+      return;
+    }
+
     setLoading(true);
-    addLog('Starting node agent...', 'info');
+    addLog('Connecting to orchestrator...', 'info');
 
-    // Simulate node start (will be replaced with Tauri IPC)
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // Connect via WebSocket
+      const ws = new WebSocket(nodeState.orchestratorUrl);
+      wsRef.current = ws;
 
-    setNodeState(prev => ({ ...prev, running: true, connected: true, nodeId: 'abc123' }));
-    addLog('Node agent started successfully', 'success');
-    addLog(`Connected to ${nodeState.orchestratorUrl}`, 'success');
-    setLoading(false);
+      ws.onopen = () => {
+        addLog('WebSocket connected', 'success');
+
+        // Register with the orchestrator
+        const registerMsg = {
+          type: 'register',
+          capabilities: {
+            node_id: `web-${crypto.randomUUID().slice(0, 8)}`,
+            gpus: hardware?.gpus.map(g => ({
+              model: g.model,
+              vram_mb: g.vram_mb,
+              supports: { cuda: false, rocm: false, vulkan: true, metal: false, opencl: true },
+            })) || [],
+            cpu: {
+              model: hardware?.cpu.model || 'Unknown',
+              cores: hardware?.cpu.cores || 4,
+              threads: hardware?.cpu.threads || 8,
+              features: ['sse4', 'avx'],
+            },
+            memory: {
+              total_mb: hardware?.memory.total_mb || 8192,
+              available_mb: hardware?.memory.available_mb || 4096,
+            },
+            storage: {
+              total_gb: hardware?.storage.total_gb || 100,
+              available_gb: hardware?.storage.available_gb || 50,
+            },
+            mcp_adapters: ['docker'],
+          },
+          workspace_ids: selectedWorkspaces,
+        };
+
+        ws.send(JSON.stringify(registerMsg));
+        addLog(`Registering with ${selectedWorkspaces.length} workspace(s)...`, 'info');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+
+          if (msg.type === 'registered') {
+            setNodeState(prev => ({
+              ...prev,
+              running: true,
+              connected: true,
+              nodeId: msg.node_id
+            }));
+            addLog(`Registered as node ${msg.node_id}`, 'success');
+            addLog(`Contributing to ${selectedWorkspaces.length} workspace(s)`, 'success');
+            setLoading(false);
+
+            // Start heartbeat
+            heartbeatRef.current = setInterval(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: 'heartbeat',
+                  available: true,
+                  current_jobs: 0,
+                }));
+              }
+            }, 30000);
+          } else if (msg.type === 'job_assignment') {
+            addLog(`Received job: ${msg.job.id}`, 'info');
+            // In web mode, we can't actually run jobs - just acknowledge
+            addLog('Web mode cannot execute jobs (display only)', 'error');
+          } else if (msg.type === 'error') {
+            addLog(`Error: ${msg.message}`, 'error');
+          }
+        } catch (err) {
+          console.error('Failed to parse message:', err);
+        }
+      };
+
+      ws.onerror = (error) => {
+        addLog('WebSocket error - check console', 'error');
+        console.error('WebSocket error:', error);
+        setLoading(false);
+      };
+
+      ws.onclose = () => {
+        addLog('Disconnected from orchestrator', 'info');
+        setNodeState(prev => ({ ...prev, running: false, connected: false, nodeId: null }));
+        if (heartbeatRef.current) {
+          clearInterval(heartbeatRef.current);
+          heartbeatRef.current = null;
+        }
+      };
+
+    } catch (err) {
+      addLog(`Connection failed: ${err}`, 'error');
+      setLoading(false);
+    }
   };
 
   const stopNode = async () => {
     setLoading(true);
-    addLog('Stopping node agent...', 'info');
+    addLog('Stopping node...', 'info');
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
 
     setNodeState(prev => ({ ...prev, running: false, connected: false, nodeId: null }));
-    addLog('Node agent stopped', 'info');
+    addLog('Node stopped', 'info');
     setLoading(false);
+  };
+
+  const toggleWorkspace = (wsId: string) => {
+    setSelectedWorkspaces(prev =>
+      prev.includes(wsId)
+        ? prev.filter(id => id !== wsId)
+        : [...prev, wsId]
+    );
   };
 
   const formatMemory = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
@@ -144,8 +284,8 @@ export function NodeControl() {
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {nodeState.running
-                  ? `Connected to ${nodeState.orchestratorUrl}`
-                  : 'Not connected to network'
+                  ? `Node ID: ${nodeState.nodeId} • ${selectedWorkspaces.length} workspace(s)`
+                  : 'Select workspaces and start to contribute compute'
                 }
               </div>
             </div>
@@ -156,14 +296,73 @@ export function NodeControl() {
                 STOP NODE
               </CyberButton>
             ) : (
-              <CyberButton variant="success" icon={Power} onClick={startNode} loading={loading}>
+              <CyberButton variant="success" icon={Power} onClick={startNode} loading={loading} disabled={selectedWorkspaces.length === 0}>
                 START NODE
               </CyberButton>
             )}
-            <CyberButton icon={RefreshCw} onClick={fetchHardware}>
-              REFRESH
-            </CyberButton>
           </div>
+        </div>
+      </div>
+
+      {/* Workspace Selection */}
+      <div className="cyber-card" style={{ marginBottom: 'var(--gap-xl)' }}>
+        <div className="cyber-card-header">
+          <span className="cyber-card-title">
+            <Users size={14} style={{ marginRight: '0.5rem' }} />
+            CONTRIBUTE TO WORKSPACES
+          </span>
+          <CyberButton icon={RefreshCw} onClick={loadWorkspaces} disabled={loadingWorkspaces || nodeState.running}>
+            REFRESH
+          </CyberButton>
+        </div>
+        <div className="cyber-card-body">
+          {workspaces.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 'var(--gap-lg)', color: 'var(--text-muted)' }}>
+              {loadingWorkspaces ? 'Loading workspaces...' : 'No workspaces found. Create or join one first!'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--gap-sm)' }}>
+              {workspaces.map(ws => (
+                <button
+                  key={ws.id}
+                  onClick={() => !nodeState.running && toggleWorkspace(ws.id)}
+                  disabled={nodeState.running}
+                  style={{
+                    padding: '10px 16px',
+                    background: selectedWorkspaces.includes(ws.id)
+                      ? 'rgba(0, 212, 255, 0.2)'
+                      : 'var(--bg-elevated)',
+                    border: `1px solid ${selectedWorkspaces.includes(ws.id) ? 'var(--primary)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 'var(--radius-sm)',
+                    color: selectedWorkspaces.includes(ws.id) ? 'var(--primary)' : 'var(--text-secondary)',
+                    cursor: nodeState.running ? 'not-allowed' : 'pointer',
+                    opacity: nodeState.running ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <span style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: selectedWorkspaces.includes(ws.id) ? 'var(--primary)' : 'var(--text-muted)',
+                  }} />
+                  {ws.name}
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    ({ws.nodeCount} nodes)
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {!nodeState.running && selectedWorkspaces.length > 0 && (
+            <div style={{ marginTop: 'var(--gap-md)', fontSize: '0.8rem', color: 'var(--success)' }}>
+              ✓ Selected {selectedWorkspaces.length} workspace(s) - ready to start
+            </div>
+          )}
         </div>
       </div>
 
@@ -224,9 +423,9 @@ export function NodeControl() {
                 </div>
               </div>
               <div className="hardware-item">
-                <div className="hardware-label">DOCKER</div>
+                <div className="hardware-label">MODE</div>
                 <div className="hardware-value" style={{ fontSize: '0.875rem' }}>
-                  {hardware?.docker_version ?? 'Not found'}
+                  Web Browser
                 </div>
               </div>
             </div>
@@ -270,7 +469,7 @@ export function NodeControl() {
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                         <span style={{ color: 'var(--primary)' }}>{(gpu.vram_mb / 1024).toFixed(0)} GB</span> VRAM
                         <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
-                        Driver: {gpu.driver_version}
+                        {gpu.driver_version}
                       </div>
                     </div>
                     <div style={{
@@ -282,7 +481,7 @@ export function NodeControl() {
                       color: 'var(--success)',
                       fontFamily: 'var(--font-mono)',
                     }}>
-                      CUDA
+                      WebGL
                     </div>
                   </div>
                 ))}

@@ -21,7 +21,16 @@
   "devDependencies": {
     "concurrently": "^9.1.0"
   },
-  "keywords": ["rhizos", "compute", "decentralized", "crypto", "cloud"],
+  "keywords": [
+    "rhizos",
+    "compute",
+    "decentralized",
+    "crypto",
+    "cloud"
+  ],
   "license": "MIT",
-  "packageManager": "pnpm@10.10.0"
+  "packageManager": "pnpm@10.10.0",
+  "dependencies": {
+    "zod": "^4.3.5"
+  }
 }

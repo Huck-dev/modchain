@@ -18,6 +18,7 @@ import {
 export class NodeManager {
   private nodes: Map<string, ConnectedNode> = new Map();
   private authTokens: Map<string, string> = new Map(); // token -> nodeId
+  private nodeWorkspaces: Map<string, Set<string>> = new Map(); // nodeId -> workspaceIds
 
   constructor() {
     // Start health check interval
@@ -121,6 +122,13 @@ export class NodeManager {
 
     this.nodes.set(nodeId, node);
 
+    // Handle workspace assignments from node config
+    const workspaceIds = (message as any).workspace_ids as string[] | undefined;
+    if (workspaceIds && workspaceIds.length > 0) {
+      this.nodeWorkspaces.set(nodeId, new Set(workspaceIds));
+      console.log(`[NodeManager] Node ${nodeId} joined workspaces: ${workspaceIds.join(', ')}`);
+    }
+
     // Send registration confirmation
     this.send(ws, {
       type: 'registered',
@@ -169,6 +177,8 @@ export class NodeManager {
     if (node) {
       console.log(`[NodeManager] Node ${node.id} disconnected`);
       this.nodes.delete(node.id);
+      // Clean up workspace mappings
+      this.nodeWorkspaces.delete(node.id);
     }
   }
 
@@ -300,6 +310,85 @@ export class NodeManager {
    */
   getNodes(): ConnectedNode[] {
     return Array.from(this.nodes.values());
+  }
+
+  /**
+   * Get nodes for a specific workspace
+   */
+  getNodesForWorkspace(workspaceId: string): ConnectedNode[] {
+    const nodes: ConnectedNode[] = [];
+    for (const [nodeId, workspaceIds] of this.nodeWorkspaces) {
+      if (workspaceIds.has(workspaceId)) {
+        const node = this.nodes.get(nodeId);
+        if (node) {
+          nodes.push(node);
+        }
+      }
+    }
+    return nodes;
+  }
+
+  /**
+   * Add a node to a workspace
+   */
+  addNodeToWorkspace(nodeId: string, workspaceId: string): boolean {
+    const node = this.nodes.get(nodeId);
+    if (!node) return false;
+
+    if (!this.nodeWorkspaces.has(nodeId)) {
+      this.nodeWorkspaces.set(nodeId, new Set());
+    }
+    this.nodeWorkspaces.get(nodeId)!.add(workspaceId);
+    console.log(`[NodeManager] Node ${nodeId} joined workspace ${workspaceId}`);
+    return true;
+  }
+
+  /**
+   * Remove a node from a workspace
+   */
+  removeNodeFromWorkspace(nodeId: string, workspaceId: string): boolean {
+    const workspaces = this.nodeWorkspaces.get(nodeId);
+    if (!workspaces) return false;
+
+    const removed = workspaces.delete(workspaceId);
+    if (removed) {
+      console.log(`[NodeManager] Node ${nodeId} left workspace ${workspaceId}`);
+    }
+    return removed;
+  }
+
+  /**
+   * Get workspaces a node belongs to
+   */
+  getNodeWorkspaces(nodeId: string): string[] {
+    const workspaces = this.nodeWorkspaces.get(nodeId);
+    return workspaces ? Array.from(workspaces) : [];
+  }
+
+  /**
+   * Find a node for a job, optionally filtered by workspace
+   */
+  findNodeForJobInWorkspace(requirements: JobRequirements, workspaceId?: string): ConnectedNode | null {
+    let candidates = Array.from(this.nodes.values());
+
+    // Filter by workspace if specified
+    if (workspaceId) {
+      candidates = candidates.filter((node) => {
+        const nodeWorkspaces = this.nodeWorkspaces.get(node.id);
+        return nodeWorkspaces?.has(workspaceId) ?? false;
+      });
+    }
+
+    // Filter by requirements and sort
+    candidates = candidates
+      .filter((node) => this.nodeMatchesRequirements(node, requirements))
+      .sort((a, b) => {
+        if (a.available !== b.available) return a.available ? -1 : 1;
+        if (a.reputation !== b.reputation) return b.reputation - a.reputation;
+        return a.current_jobs - b.current_jobs;
+      });
+
+    return candidates[0] || null;
   }
 
   /**

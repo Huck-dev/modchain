@@ -37,6 +37,10 @@ enum Commands {
         /// Orchestrator URL to connect to
         #[arg(short, long, default_value = "https://orchestrator.rhizos.cloud")]
         orchestrator: String,
+
+        /// Workspace IDs to join (can be specified multiple times)
+        #[arg(short, long)]
+        workspace: Vec<String>,
     },
 
     /// Show detected hardware capabilities
@@ -77,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber)?;
 
     match cli.command {
-        Commands::Start { config: config_path, orchestrator } => {
+        Commands::Start { config: config_path, orchestrator, workspace } => {
             info!("Starting RhizOS Node Agent...");
 
             // Load configuration
@@ -95,12 +99,18 @@ async fn main() -> anyhow::Result<()> {
                 capabilities.memory.total_mb
             );
 
+            // Log workspace info
+            if !workspace.is_empty() {
+                info!("Joining {} workspace(s): {:?}", workspace.len(), workspace);
+            }
+
             // Connect to orchestrator
             info!("Connecting to orchestrator at {}...", orchestrator);
             let mut node = orchestrator::NodeConnection::new(
                 &orchestrator,
                 capabilities,
                 config,
+                workspace,
             ).await?;
 
             // Start the main loop

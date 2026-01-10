@@ -60,3 +60,8 @@ Cargo.lock
 # Cache
 .cache/
 .parcel-cache/
+
+# Sensitive data
+users.json
+keys.json
+workspaces.json

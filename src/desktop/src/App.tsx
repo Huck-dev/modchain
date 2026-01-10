@@ -1,14 +1,68 @@
 import { Routes, Route, NavLink } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Server, Settings as SettingsIcon, Wifi, WifiOff, Rocket, Box, GitBranch } from 'lucide-react';
-import { Dashboard, NodeControl, Settings, SubmitJob, Modules, Deploy, FlowBuilder } from './pages';
+import { LayoutDashboard, Server, Settings as SettingsIcon, Wifi, WifiOff, Rocket, Box, GitBranch, Download, Users, LogOut } from 'lucide-react';
+import { Dashboard, NodeControl, Settings, SubmitJob, Modules, Deploy, FlowBuilder, Login } from './pages';
+import { DownloadPage } from './pages/Download';
+import { WorkspacePage } from './pages/Workspace';
 import { ModuleProvider } from './context/ModuleContext';
+import { CredentialProvider } from './context/CredentialContext';
+
+// Helper to get auth token
+function getToken(): string | null {
+  return localStorage.getItem('rhizos_token');
+}
+
+// Helper to make authenticated fetch requests
+export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = getToken();
+  const headers = new Headers(options.headers);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(url, { ...options, headers });
+}
 
 function App() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [userName, setUserName] = useState<string>('');
   const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
+  // Check authentication on mount
   useEffect(() => {
+    const checkAuth = async () => {
+      const token = getToken();
+      if (!token) {
+        setAuthenticated(false);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/v1/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setAuthenticated(true);
+          setUserName(data.name || 'User');
+        } else {
+          // Invalid token, clear it
+          localStorage.removeItem('rhizos_token');
+          setAuthenticated(false);
+        }
+      } catch {
+        setAuthenticated(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Check connection status (only when authenticated)
+  useEffect(() => {
+    if (!authenticated) return;
+
     const checkConnection = async () => {
       try {
         const res = await fetch('/health');
@@ -22,24 +76,76 @@ function App() {
     checkConnection();
     const interval = setInterval(checkConnection, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authenticated]);
+
+  const handleLogin = (token: string) => {
+    setAuthenticated(true);
+    // Re-check to get user name
+    fetch('/api/v1/auth/me', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(data => setUserName(data.name || 'User'))
+      .catch(() => {});
+  };
+
+  const handleLogout = async () => {
+    const token = getToken();
+    if (token) {
+      try {
+        await fetch('/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+      } catch {}
+    }
+    localStorage.removeItem('rhizos_token');
+    setAuthenticated(false);
+    setUserName('');
+  };
+
+  // Show loading while checking auth
+  if (authenticated === null) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0a0a0a',
+        color: '#fff',
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!authenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
-    <ModuleProvider>
-      <div className="app-container">
+    <CredentialProvider>
+      <ModuleProvider>
+        <div className="app-container">
         {/* Header */}
         <header className="app-header">
           <div className="header-logo">
             <div className="logo-icon">
               <Server size={20} />
             </div>
-            <h1 className="logo-text">RhizOS</h1>
+            <h1 className="logo-text">OtherThing</h1>
           </div>
 
           <nav className="header-nav">
             <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <LayoutDashboard size={16} />
               <span>Dashboard</span>
+            </NavLink>
+            <NavLink to="/workspace" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <Users size={16} />
+              <span>Workspace</span>
             </NavLink>
             <NavLink to="/deploy" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <Rocket size={16} />
@@ -56,6 +162,10 @@ function App() {
             <NavLink to="/node" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <Server size={16} />
               <span>Node</span>
+            </NavLink>
+            <NavLink to="/download" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <Download size={16} />
+              <span>Install</span>
             </NavLink>
             <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <SettingsIcon size={16} />
@@ -82,6 +192,11 @@ function App() {
                 <span className="status-text offline">Disconnected</span>
               </>
             )}
+            <span className="status-divider">|</span>
+            <span className="status-user">{userName}</span>
+            <button className="logout-btn" onClick={handleLogout} title="Logout">
+              <LogOut size={16} />
+            </button>
           </div>
         </header>
 
@@ -89,16 +204,19 @@ function App() {
         <main className="app-main">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/workspace" element={<WorkspacePage />} />
             <Route path="/deploy" element={<Deploy />} />
             <Route path="/flow" element={<FlowBuilder />} />
             <Route path="/submit" element={<SubmitJob />} />
             <Route path="/modules" element={<Modules />} />
             <Route path="/node" element={<NodeControl />} />
+            <Route path="/download" element={<DownloadPage />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
-      </div>
-    </ModuleProvider>
+        </div>
+      </ModuleProvider>
+    </CredentialProvider>
   );
 }
 

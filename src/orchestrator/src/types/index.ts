@@ -211,3 +211,81 @@ export interface RegisterNodeResponse {
   node_id: string;
   auth_token: string;
 }
+
+// ============ Flow Deployment Types ============
+
+export const FlowNodeSchema = z.object({
+  id: z.string(),
+  moduleId: z.string(),
+  moduleName: z.string(),
+  moduleVersion: z.string().optional(),
+  position: z.object({
+    x: z.number(),
+    y: z.number(),
+  }),
+  config: z.record(z.string(), z.unknown()).default({}),
+  credentialRefs: z.record(z.string(), z.object({
+    credentialId: z.string(),
+    type: z.string(),
+  })).optional(),
+});
+
+export const FlowConnectionSchema = z.object({
+  id: z.string(),
+  sourceNodeId: z.string(),
+  sourcePort: z.string().default('output'),
+  targetNodeId: z.string(),
+  targetPort: z.string().default('input'),
+});
+
+export const DeployFlowRequestSchema = z.object({
+  flowId: z.string(),
+  name: z.string(),
+  nodes: z.array(FlowNodeSchema),
+  connections: z.array(FlowConnectionSchema),
+  resolvedCredentials: z.record(z.string(), z.record(z.string(), z.string())),
+  options: z.object({
+    dryRun: z.boolean().default(false),
+    priority: z.enum(['low', 'normal', 'high']).default('normal'),
+    maxCostCents: z.number().positive().optional(),
+  }).optional(),
+});
+
+export type DeployFlowRequest = z.infer<typeof DeployFlowRequestSchema>;
+export type FlowNode = z.infer<typeof FlowNodeSchema>;
+export type FlowConnection = z.infer<typeof FlowConnectionSchema>;
+
+export const FlowDeploymentStatusSchema = z.enum([
+  'pending',
+  'deploying',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+]);
+
+export type FlowDeploymentStatus = z.infer<typeof FlowDeploymentStatusSchema>;
+
+export interface FlowDeployment {
+  id: string;
+  flowId: string;
+  name: string;
+  clientId: string;
+  status: FlowDeploymentStatus;
+  nodes: FlowNode[];
+  connections: FlowConnection[];
+  nodeJobs: Record<string, string>; // nodeId -> jobId mapping
+  nodeStatuses: Record<string, {
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+    jobId?: string;
+    startedAt?: Date;
+    completedAt?: Date;
+    error?: string;
+    output?: unknown;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt?: Date;
+  totalCostCents: number;
+  error?: string;
+}

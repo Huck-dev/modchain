@@ -7,11 +7,21 @@
 
 import { BaseAdapter } from './adapters/base.js';
 import { LlmInferenceAdapter } from './adapters/llm-inference.js';
+import { AgentAdapter } from './adapters/agent.js';
+import { MemoryAdapter } from './adapters/memory.js';
+import { ToolAdapter } from './adapters/tool.js';
+import { TradingAdapter } from './adapters/trading.js';
+import { SearchAdapter } from './adapters/search.js';
 
 // Export types
 export * from './types/index.js';
 export { BaseAdapter } from './adapters/base.js';
 export { LlmInferenceAdapter } from './adapters/llm-inference.js';
+export { AgentAdapter } from './adapters/agent.js';
+export { MemoryAdapter } from './adapters/memory.js';
+export { ToolAdapter } from './adapters/tool.js';
+export { TradingAdapter } from './adapters/trading.js';
+export { SearchAdapter } from './adapters/search.js';
 
 // Adapter registry
 const adapters: Map<string, BaseAdapter> = new Map();
@@ -58,6 +68,11 @@ export async function shutdownAdapters(): Promise<void> {
 
 // Register built-in adapters
 registerAdapter(new LlmInferenceAdapter());
+registerAdapter(new AgentAdapter());
+registerAdapter(new MemoryAdapter());
+registerAdapter(new ToolAdapter());
+registerAdapter(new TradingAdapter());
+registerAdapter(new SearchAdapter());
 
 // Main entry point when run directly
 if (import.meta.url.endsWith(process.argv[1]?.replace(/\\/g, '/') || '')) {
