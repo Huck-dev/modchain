@@ -52,7 +52,7 @@
 - Hardware detection via native node API on port 3847
 - WebSocket connection to orchestrator for web-based node mode
 
-## Electron Native Node (IN PROGRESS)
+## Electron Native Node (COMPLETE)
 
 ### Location
 `/mnt/d/modchain/src/node-electron/`
@@ -65,11 +65,11 @@
 - [x] Node service (`src/node-service.ts`) - WebSocket connection, job execution
 - [x] Preload script (`src/preload.ts`) - contextBridge API
 - [x] UI (`src/index.html`) - full dashboard UI
-- [x] Icons created (PNG)
-- [x] **Linux AppImage built** - `release/OtherThing-Node.AppImage` (104MB)
-- [ ] Windows .exe build (run `pnpm dist:win`)
-- [ ] macOS .dmg build (run `pnpm dist:mac`)
-- [ ] Upload installers to production server `/downloads/` directory
+- [x] Icons created (PNG, ICO, SVG)
+- [x] **Linux AppImage built** - `release/OtherThing-Node.AppImage` (100MB)
+- [x] **Windows .exe built** - `release/OtherThing-Node-Setup.exe` (73MB)
+- [x] **Installers uploaded to production** - `/usr/share/nginx/html/downloads/`
+- [ ] macOS .dmg build (requires macOS for signing)
 
 ### Build Commands
 ```bash
@@ -101,11 +101,15 @@ The Node page (`NodeControl.tsx`) links to:
 These files need to be uploaded to nginx's `/usr/share/nginx/html/downloads/` on production.
 
 ## Next Steps
-1. Build Windows installer: `pnpm dist:win`
-2. Build macOS installer: `pnpm dist:mac` (may need macOS for signing)
-3. Create `/downloads/` directory on production server
-4. Upload built installers to production
-5. Test the full flow: download → install → detect hardware → start node
+1. ~~Build Windows installer~~ DONE
+2. ~~Upload installers to production~~ DONE
+3. Build macOS installer: `pnpm dist:mac` (requires macOS for code signing)
+4. Test the full flow: download → install → detect hardware → start node
+5. Add auto-update functionality to Electron app
+
+## Download URLs (LIVE)
+- Windows: http://155.117.46.228/downloads/OtherThing-Node-Setup.exe
+- Linux: http://155.117.46.228/downloads/OtherThing-Node.AppImage
 
 ## Key Files Reference
 
