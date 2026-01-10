@@ -1,11 +1,69 @@
 # OtherThing (formerly RhizOS) - Handoff Document
 
 **Last Updated**: 2026-01-10
-**Status**: Workspace-scoped compute IMPLEMENTED
+**Status**: Workspace-scoped compute IMPLEMENTED + DEPLOYED TO PRODUCTION
 
 ---
 
-## Quick Resume
+## Production Server
+
+**Public URL:** http://155.117.46.228
+- Frontend: http://155.117.46.228
+- API: http://155.117.46.228/api/v1/...
+- WebSocket: ws://155.117.46.228/ws/node
+
+### SSH Access to Remote Server
+
+The remote server requires SSH key auth with a passphrase. Use this expect script:
+
+```bash
+# Create /tmp/remote.sh with this content:
+cat > /tmp/remote.sh << 'EOF'
+#!/bin/bash
+expect << EXPECT_EOF
+log_user 0
+spawn ssh -o StrictHostKeyChecking=no administrator@155.117.46.228 "$1"
+expect "passphrase"
+send "Leonidas12!\r"
+log_user 1
+expect eof
+EXPECT_EOF
+EOF
+chmod +x /tmp/remote.sh
+
+# Now you can run commands on the server:
+/tmp/remote.sh "whoami"
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl status otherthing"
+```
+
+**Credentials:**
+- Server: 155.117.46.228
+- User: administrator
+- SSH passphrase (local key): Leonidas12!
+- Sudo password (server): bAttlezone12a!
+
+### Server Management Commands
+
+```bash
+# Check service status
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl status otherthing --no-pager"
+
+# View logs
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S journalctl -u otherthing -n 50"
+
+# Restart orchestrator
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart otherthing"
+
+# Update from GitHub and rebuild
+/tmp/remote.sh "cd /opt/rhizos-cloud && echo 'bAttlezone12a!' | sudo -S git pull"
+/tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S pnpm build"
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/"
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart otherthing nginx"
+```
+
+---
+
+## Local Development
 
 ```bash
 # Start everything for development
@@ -19,7 +77,7 @@ cd /mnt/d/modchain/src/orchestrator && pnpm dev
 cd /mnt/d/modchain/src/desktop && pnpm dev
 ```
 
-**URLs:**
+**Local URLs:**
 - Desktop UI: http://localhost:1420
 - Orchestrator API: http://localhost:8080
 
