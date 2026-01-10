@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users, Plus, UserPlus, Copy, CheckCircle, Server,
-  Globe, Lock, LogOut, RefreshCw, Zap, Trash2
+  Globe, Lock, LogOut, RefreshCw, Zap, Trash2, ChevronRight
 } from 'lucide-react';
 import { CyberButton } from '../components';
 import { authFetch } from '../App';
@@ -25,6 +26,7 @@ interface Workspace {
 }
 
 export function WorkspacePage() {
+  const navigate = useNavigate();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -301,7 +303,12 @@ export function WorkspacePage() {
             gap: 'var(--gap-md)',
           }}>
             {workspaces.map(ws => (
-              <div key={ws.id} className="cyber-card hover-lift">
+              <div
+                key={ws.id}
+                className="cyber-card hover-lift"
+                style={{ cursor: 'pointer', position: 'relative' }}
+                onClick={() => navigate(`/workspace/${ws.id}`)}
+              >
                 <div className="cyber-card-body" style={{ padding: 'var(--gap-lg)' }}>
                   <div style={{
                     display: 'flex',
@@ -324,12 +331,13 @@ export function WorkspacePage() {
                         }}>
                           {ws.name}
                         </span>
+                        <ChevronRight size={16} style={{ color: 'var(--text-muted)', marginLeft: 'auto' }} />
                       </div>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {ws.description || 'No description'}
                       </p>
                     </div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
                       {ws.inviteCode && (
                         <button
                           onClick={() => deleteWorkspace(ws.id)}
@@ -367,15 +375,18 @@ export function WorkspacePage() {
 
                   {/* Invite Code (only for owners) */}
                   {ws.inviteCode && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--gap-sm)',
-                      marginBottom: 'var(--gap-md)',
-                      padding: 'var(--gap-sm)',
-                      background: 'var(--bg-void)',
-                      borderRadius: 'var(--radius-sm)',
-                    }}>
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--gap-sm)',
+                        marginBottom: 'var(--gap-md)',
+                        padding: 'var(--gap-sm)',
+                        background: 'var(--bg-void)',
+                        borderRadius: 'var(--radius-sm)',
+                      }}
+                    >
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>INVITE:</span>
                       <code style={{
                         flex: 1,

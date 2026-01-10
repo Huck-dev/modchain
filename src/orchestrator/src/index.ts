@@ -14,6 +14,7 @@ import { JobQueue } from './services/job-queue.js';
 import { PaymentService } from './services/payment.js';
 import { FlowDeploymentService } from './services/flow-deployment.js';
 import { WorkspaceManager } from './services/workspace-manager.js';
+import { taskManager } from './services/task-manager.js';
 import {
   RegisterNodeRequestSchema,
   CreateJobRequestSchema,
@@ -355,17 +356,103 @@ app.get('/api/v1/workspaces/:id/nodes', requireAuth, (req, res) => {
   res.json({
     nodes: nodes.map((n) => ({
       id: n.id,
-      available: n.available,
-      current_jobs: n.current_jobs,
+      hostname: n.id.split('-')[0] || 'node',
+      status: n.available ? 'online' : 'busy',
       capabilities: {
-        gpus: n.capabilities.gpus.length,
-        gpu_details: n.capabilities.gpus,
-        cpu_cores: n.capabilities.cpu.cores,
-        memory_mb: n.capabilities.memory.total_mb,
+        gpuCount: n.capabilities.gpus.length,
+        cpuCores: n.capabilities.cpu.cores,
+        memoryMb: n.capabilities.memory.total_mb,
       },
       reputation: n.reputation,
     })),
   });
+});
+
+// ============ Task Endpoints ============
+
+// Get tasks for a workspace
+app.get('/api/v1/workspaces/:id/tasks', requireAuth, (req, res) => {
+  const session = (req as any).session;
+
+  if (!workspaceManager.isMember(req.params.id, session.userId)) {
+    res.status(403).json({ error: 'Not a member of this workspace' });
+    return;
+  }
+
+  const tasks = taskManager.getTasksForWorkspace(req.params.id);
+  res.json({ tasks });
+});
+
+// Create a task
+app.post('/api/v1/workspaces/:id/tasks', requireAuth, (req, res) => {
+  const session = (req as any).session;
+
+  if (!workspaceManager.isMember(req.params.id, session.userId)) {
+    res.status(403).json({ error: 'Not a member of this workspace' });
+    return;
+  }
+
+  const { title, description, priority } = req.body;
+
+  if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    res.status(400).json({ error: 'Task title is required' });
+    return;
+  }
+
+  const task = taskManager.createTask(req.params.id, session.userId, {
+    title: title.trim(),
+    description: description || '',
+    priority: priority || 'medium',
+  });
+
+  res.status(201).json({ task });
+});
+
+// Update a task
+app.patch('/api/v1/workspaces/:id/tasks/:taskId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+
+  if (!workspaceManager.isMember(req.params.id, session.userId)) {
+    res.status(403).json({ error: 'Not a member of this workspace' });
+    return;
+  }
+
+  const task = taskManager.getTask(req.params.taskId);
+  if (!task || task.workspaceId !== req.params.id) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+
+  const { title, description, status, priority, assignedTo } = req.body;
+  const updates: Record<string, any> = {};
+
+  if (title !== undefined) updates.title = title;
+  if (description !== undefined) updates.description = description;
+  if (status !== undefined) updates.status = status;
+  if (priority !== undefined) updates.priority = priority;
+  if (assignedTo !== undefined) updates.assignedTo = assignedTo;
+
+  const updatedTask = taskManager.updateTask(req.params.taskId, updates);
+  res.json({ task: updatedTask });
+});
+
+// Delete a task
+app.delete('/api/v1/workspaces/:id/tasks/:taskId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+
+  if (!workspaceManager.isMember(req.params.id, session.userId)) {
+    res.status(403).json({ error: 'Not a member of this workspace' });
+    return;
+  }
+
+  const task = taskManager.getTask(req.params.taskId);
+  if (!task || task.workspaceId !== req.params.id) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+
+  taskManager.deleteTask(req.params.taskId);
+  res.json({ success: true });
 });
 
 // ============ Protected API Endpoints ============

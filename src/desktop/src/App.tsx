@@ -4,6 +4,7 @@ import { LayoutDashboard, Server, Settings as SettingsIcon, Wifi, WifiOff, Rocke
 import { Dashboard, NodeControl, Settings, SubmitJob, Modules, Deploy, FlowBuilder, Login } from './pages';
 import { DownloadPage } from './pages/Download';
 import { WorkspacePage } from './pages/Workspace';
+import { WorkspaceDetail } from './pages/WorkspaceDetail';
 import { ModuleProvider } from './context/ModuleContext';
 import { CredentialProvider } from './context/CredentialContext';
 
@@ -205,6 +206,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/workspace" element={<WorkspacePage />} />
+            <Route path="/workspace/:id" element={<WorkspaceDetail />} />
             <Route path="/deploy" element={<Deploy />} />
             <Route path="/flow" element={<FlowBuilder />} />
             <Route path="/submit" element={<SubmitJob />} />
