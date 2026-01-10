@@ -4,3 +4,4 @@ packages:
   - 'src/cli'
   - 'src/dashboard'
   - 'src/desktop'
+  - 'src/node-electron'

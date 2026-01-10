@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src *;">
+  <title>OtherThing Node</title>
+  <style>
+    :root {
+      --primary: #00d4ff;
+      --primary-light: #ff00ff;
+      --success: #00ff41;
+      --warning: #ffaa00;
+      --error: #ff3366;
+      --bg-dark: #0a0a0f;
+      --bg-surface: #12121a;
+      --bg-elevated: #1a1a24;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0b0;
+      --text-muted: #606070;
+      --border: rgba(255, 255, 255, 0.1);
+      --font-display: 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'Consolas', 'Monaco', monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      -webkit-app-region: drag;
+    }
+
+    .titlebar {
+      height: 32px;
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .titlebar-title {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .container {
+      height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 20px;
+      -webkit-app-region: no-drag;
+    }
+
+    .status-banner {
+      background: linear-gradient(135deg, var(--bg-surface), var(--bg-elevated));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .status-banner.running {
+      border-color: var(--success);
+      background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), var(--bg-surface));
+    }
+
+    .status-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .status-banner.running .status-icon {
+      border-color: var(--success);
+      box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+    }
+
+    .status-text h2 {
+      font-size: 1.25rem;
+      margin-bottom: 4px;
+    }
+
+    .status-text p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      background: var(--bg-surface);
+      border-color: var(--primary);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #0088aa);
+      border-color: var(--primary);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #00e5ff, var(--primary));
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success), #00aa2a);
+      border-color: var(--success);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, var(--error), #aa0022);
+      border-color: var(--error);
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+    }
+
+    .card-body {
+      padding: 16px;
+    }
+
+    .hardware-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .hardware-item {
+      background: var(--bg-elevated);
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .hardware-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .hardware-value {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: var(--primary);
+    }
+
+    .gpu-item {
+      background: rgba(255, 0, 255, 0.05);
+      border: 1px solid rgba(255, 0, 255, 0.2);
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .gpu-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--primary-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary-light);
+      font-size: 0.8rem;
+      font-weight: bold;
+    }
+
+    .gpu-info h4 {
+      color: var(--primary-light);
+      font-size: 0.9rem;
+      margin-bottom: 2px;
+    }
+
+    .gpu-info p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .workspace-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .workspace-chip {
+      padding: 8px 14px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .workspace-chip:hover {
+      border-color: var(--primary);
+    }
+
+    .workspace-chip.selected {
+      background: rgba(0, 212, 255, 0.2);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .workspace-chip .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .workspace-chip.selected .dot {
+      background: var(--primary);
+    }
+
+    .log-container {
+      background: var(--bg-dark);
+      border-radius: 8px;
+      padding: 12px;
+      height: 200px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    .log-entry {
+      padding: 2px 0;
+      display: flex;
+      gap: 8px;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+    }
+
+    .log-message {
+      color: var(--text-secondary);
+    }
+
+    .log-entry.success .log-message { color: var(--success); }
+    .log-entry.error .log-message { color: var(--error); }
+
+    .empty-state {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-muted);
+    }
+
+    .loading {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <span class="titlebar-title">OtherThing Node</span>
+  </div>
+
+  <div class="container">
+    <!-- Status Banner -->
+    <div id="status-banner" class="status-banner">
+      <div class="status-info">
+        <div class="status-icon">⚡</div>
+        <div class="status-text">
+          <h2 id="status-title">Node Offline</h2>
+          <p id="status-subtitle">Select workspaces and start to contribute compute</p>
+        </div>
+      </div>
+      <div class="buttons">
+        <button id="detect-btn" class="btn">🔍 Detect Hardware</button>
+        <button id="start-btn" class="btn btn-success" disabled>▶ Start Node</button>
+        <button id="stop-btn" class="btn btn-danger" style="display: none;">⏹ Stop Node</button>
+      </div>
+    </div>
+
+    <!-- Workspace Selection -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📁 Contribute to Workspaces</span>
+        <button id="refresh-ws-btn" class="btn" style="padding: 6px 12px; font-size: 0.8rem;">↻ Refresh</button>
+      </div>
+      <div class="card-body">
+        <div id="workspace-list" class="workspace-list">
+          <div class="empty-state">Loading workspaces...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hardware Info -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🖥️ Processor</span>
+        </div>
+        <div class="card-body">
+          <div id="cpu-info" class="empty-state">Click "Detect Hardware" to scan</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">💾 Memory & Storage</span>
+        </div>
+        <div class="card-body">
+          <div id="memory-info" class="empty-state">Click "Detect Hardware" to scan</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GPUs -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⚡ GPU Accelerators</span>
+        <span id="gpu-count" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--primary-light);">0 DETECTED</span>
+      </div>
+      <div class="card-body">
+        <div id="gpu-list" class="empty-state">Click "Detect Hardware" to scan</div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📋 Node Logs</span>
+      </div>
+      <div class="card-body">
+        <div id="log-container" class="log-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { electronAPI } = window;
+
+    let selectedWorkspaces = [];
+    let hardware = null;
+    let nodeRunning = false;
+
+    // DOM elements
+    const statusBanner = document.getElementById('status-banner');
+    const statusTitle = document.getElementById('status-title');
+    const statusSubtitle = document.getElementById('status-subtitle');
+    const detectBtn = document.getElementById('detect-btn');
+    const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const workspaceList = document.getElementById('workspace-list');
+    const cpuInfo = document.getElementById('cpu-info');
+    const memoryInfo = document.getElementById('memory-info');
+    const gpuList = document.getElementById('gpu-list');
+    const gpuCount = document.getElementById('gpu-count');
+    const logContainer = document.getElementById('log-container');
+    const refreshWsBtn = document.getElementById('refresh-ws-btn');
+
+    // Add log entry
+    function addLog(log) {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${log.type}`;
+      entry.innerHTML = `<span class="log-time">[${log.time}]</span><span class="log-message">${log.message}</span>`;
+      logContainer.insertBefore(entry, logContainer.firstChild);
+    }
+
+    // Update hardware display
+    function updateHardwareDisplay() {
+      if (!hardware) return;
+
+      // CPU
+      cpuInfo.innerHTML = `
+        <div style="font-size: 1rem; color: var(--primary); margin-bottom: 12px;">${hardware.cpu.model}</div>
+        <div class="hardware-grid">
+          <div class="hardware-item">
+            <div class="hardware-label">Cores</div>
+            <div class="hardware-value">${hardware.cpu.cores}</div>
+          </div>
+          <div class="hardware-item">
+            <div class="hardware-label">Threads</div>
+            <div class="hardware-value">${hardware.cpu.threads}</div>
+          </div>
+        </div>
+      `;
+
+      // Memory
+      memoryInfo.innerHTML = `
+        <div class="hardware-grid">
+          <div class="hardware-item">
+            <div class="hardware-label">Total RAM</div>
+            <div class="hardware-value">${(hardware.memory.total_mb / 1024).toFixed(1)} GB</div>
+          </div>
+          <div class="hardware-item">
+            <div class="hardware-label">Available</div>
+            <div class="hardware-value" style="color: var(--success);">${(hardware.memory.available_mb / 1024).toFixed(1)} GB</div>
+          </div>
+          <div class="hardware-item">
+            <div class="hardware-label">Storage</div>
+            <div class="hardware-value">${hardware.storage.total_gb} GB</div>
+          </div>
+          <div class="hardware-item">
+            <div class="hardware-label">Docker</div>
+            <div class="hardware-value" style="font-size: 0.75rem;">${hardware.docker_version || 'Not found'}</div>
+          </div>
+        </div>
+      `;
+
+      // GPUs
+      gpuCount.textContent = `${hardware.gpus.length} DETECTED`;
+      if (hardware.gpus.length > 0) {
+        gpuList.innerHTML = hardware.gpus.map((gpu, i) => `
+          <div class="gpu-item">
+            <div class="gpu-icon">#${i}</div>
+            <div class="gpu-info">
+              <h4>${gpu.model}</h4>
+              <p><span style="color: var(--primary);">${(gpu.vram_mb / 1024).toFixed(0)} GB</span> VRAM · ${gpu.driver_version}</p>
+            </div>
+            <span style="padding: 4px 10px; background: ${gpu.vendor === 'nvidia' ? 'rgba(118,185,0,0.1)' : 'rgba(237,28,36,0.1)'}; border: 1px solid ${gpu.vendor === 'nvidia' ? 'rgba(118,185,0,0.3)' : 'rgba(237,28,36,0.3)'}; border-radius: 4px; font-size: 0.7rem; color: ${gpu.vendor === 'nvidia' ? '#76b900' : '#ed1c24'}; text-transform: uppercase;">${gpu.vendor}</span>
+          </div>
+        `).join('');
+      } else {
+        gpuList.innerHTML = '<div class="empty-state">No GPU detected</div>';
+      }
+    }
+
+    // Load workspaces
+    async function loadWorkspaces() {
+      workspaceList.innerHTML = '<div class="empty-state">Loading workspaces...</div>';
+      try {
+        const data = await electronAPI.getWorkspaces();
+        if (data.workspaces && data.workspaces.length > 0) {
+          workspaceList.innerHTML = data.workspaces.map(ws => `
+            <div class="workspace-chip ${selectedWorkspaces.includes(ws.id) ? 'selected' : ''}" data-id="${ws.id}">
+              <span class="dot"></span>
+              ${ws.name}
+            </div>
+          `).join('');
+
+          // Add click handlers
+          workspaceList.querySelectorAll('.workspace-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+              if (nodeRunning) return;
+              const id = chip.dataset.id;
+              if (selectedWorkspaces.includes(id)) {
+                selectedWorkspaces = selectedWorkspaces.filter(x => x !== id);
+                chip.classList.remove('selected');
+              } else {
+                selectedWorkspaces.push(id);
+                chip.classList.add('selected');
+              }
+              updateStartButton();
+            });
+          });
+        } else {
+          workspaceList.innerHTML = '<div class="empty-state">No workspaces found. Create one on the web console.</div>';
+        }
+      } catch (err) {
+        workspaceList.innerHTML = '<div class="empty-state">Failed to load workspaces</div>';
+      }
+    }
+
+    // Update start button state
+    function updateStartButton() {
+      startBtn.disabled = selectedWorkspaces.length === 0 || !hardware;
+    }
+
+    // Update status
+    function updateStatus(status) {
+      nodeRunning = status.running;
+
+      if (status.running) {
+        statusBanner.classList.add('running');
+        statusTitle.textContent = 'Node Active';
+        statusTitle.style.color = 'var(--success)';
+        statusSubtitle.textContent = status.nodeId ? `Node ID: ${status.nodeId}` : 'Connecting...';
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'flex';
+        detectBtn.disabled = true;
+      } else {
+        statusBanner.classList.remove('running');
+        statusTitle.textContent = 'Node Offline';
+        statusTitle.style.color = '';
+        statusSubtitle.textContent = 'Select workspaces and start to contribute compute';
+        startBtn.style.display = 'flex';
+        stopBtn.style.display = 'none';
+        detectBtn.disabled = false;
+      }
+    }
+
+    // Detect hardware
+    detectBtn.addEventListener('click', async () => {
+      detectBtn.disabled = true;
+      detectBtn.textContent = '⏳ Detecting...';
+      addLog({ time: new Date().toLocaleTimeString('en-US', { hour12: false }), message: 'Detecting hardware...', type: 'info' });
+
+      try {
+        hardware = await electronAPI.getHardware();
+        updateHardwareDisplay();
+        updateStartButton();
+        addLog({ time: new Date().toLocaleTimeString('en-US', { hour12: false }), message: 'Hardware detected successfully', type: 'success' });
+      } catch (err) {
+        addLog({ time: new Date().toLocaleTimeString('en-US', { hour12: false }), message: `Failed to detect hardware: ${err}`, type: 'error' });
+      }
+
+      detectBtn.disabled = false;
+      detectBtn.textContent = '🔍 Detect Hardware';
+    });
+
+    // Start node
+    startBtn.addEventListener('click', async () => {
+      startBtn.disabled = true;
+      const result = await electronAPI.startNode({ workspaceIds: selectedWorkspaces });
+      if (!result.success) {
+        addLog({ time: new Date().toLocaleTimeString('en-US', { hour12: false }), message: `Failed to start: ${result.error}`, type: 'error' });
+        startBtn.disabled = false;
+      }
+    });
+
+    // Stop node
+    stopBtn.addEventListener('click', async () => {
+      stopBtn.disabled = true;
+      await electronAPI.stopNode();
+      stopBtn.disabled = false;
+    });
+
+    // Refresh workspaces
+    refreshWsBtn.addEventListener('click', loadWorkspaces);
+
+    // Listen for status updates
+    electronAPI.onNodeStatus(updateStatus);
+    electronAPI.onNodeLog(addLog);
+
+    // Initialize
+    loadWorkspaces();
+    electronAPI.getNodeStatus().then(updateStatus);
+
+    // Auto-detect hardware on start
+    setTimeout(async () => {
+      detectBtn.click();
+    }, 500);
+  </script>
+</body>
+</html>

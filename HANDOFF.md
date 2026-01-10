@@ -1,209 +1,125 @@
-# OtherThing (formerly RhizOS) - Handoff Document
+# OtherThing Project Handoff Document
 
-**Last Updated**: 2026-01-10
-**Status**: Workspace-scoped compute IMPLEMENTED + DEPLOYED TO PRODUCTION
+## Project Overview
+**OtherThing** (formerly RhizOS) is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, and contribute compute resources via native node applications.
 
----
+## Production Deployment
+- **URL**: http://155.117.46.228
+- **Server**: Ubuntu, administrator@155.117.46.228
+- **SSH Key Passphrase**: `Leonidas12!`
+- **Sudo Password**: `bAttlezone12a!`
+- **Remote Script**: `/tmp/remote.sh` (handles SSH with expect)
 
-## Production Server
-
-**Public URL:** http://155.117.46.228
-- Frontend: http://155.117.46.228
-- API: http://155.117.46.228/api/v1/...
-- WebSocket: ws://155.117.46.228/ws/node
-
-### SSH Access to Remote Server
-
-The remote server requires SSH key auth with a passphrase. Use this expect script:
-
+### Deploy Commands
 ```bash
-# Create /tmp/remote.sh with this content:
-cat > /tmp/remote.sh << 'EOF'
-#!/bin/bash
-expect << EXPECT_EOF
-log_user 0
-spawn ssh -o StrictHostKeyChecking=no administrator@155.117.46.228 "$1"
-expect "passphrase"
-send "Leonidas12!\r"
-log_user 1
-expect eof
-EXPECT_EOF
-EOF
-chmod +x /tmp/remote.sh
-
-# Now you can run commands on the server:
-/tmp/remote.sh "whoami"
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl status otherthing"
-```
-
-**Credentials:**
-- Server: 155.117.46.228
-- User: administrator
-- SSH passphrase (local key): Leonidas12!
-- Sudo password (server): bAttlezone12a!
-
-### Server Management Commands
-
-```bash
-# Check service status
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl status otherthing --no-pager"
-
-# View logs
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S journalctl -u otherthing -n 50"
-
-# Restart orchestrator
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart otherthing"
-
-# Update from GitHub and rebuild
+# Pull and rebuild
 /tmp/remote.sh "cd /opt/rhizos-cloud && echo 'bAttlezone12a!' | sudo -S git pull"
 /tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S pnpm build"
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/"
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart otherthing nginx"
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/* && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/"
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
 ```
-
----
-
-## Local Development
-
-```bash
-# Start everything for development
-cd /mnt/d/modchain
-pkill -f "tsx\|vite" 2>/dev/null  # Kill old processes
-
-# Terminal 1: Orchestrator
-cd /mnt/d/modchain/src/orchestrator && pnpm dev
-
-# Terminal 2: Desktop UI
-cd /mnt/d/modchain/src/desktop && pnpm dev
-```
-
-**Local URLs:**
-- Desktop UI: http://localhost:1420
-- Orchestrator API: http://localhost:8080
-
-**Login:** Create account via Sign Up (username/password)
-
----
-
-## Recent Changes (2026-01-10)
-
-1. **Rebranded to "OtherThing"**
-   - Login page: "OtherThing" with hint "Install RhizOS to unlock more features"
-   - App header: "OtherThing"
-
-2. **Auth system complete** - Username/password signup/login with bcrypt + sessions
-
----
-
-## Completed: Workspace-Scoped Compute
-
-### What Was Built
-
-1. **WorkspaceManager Service** (`src/orchestrator/src/services/workspace-manager.ts`)
-   - Full CRUD for workspaces stored in `workspaces.json`
-   - Invite code generation and validation
-   - Membership management (join, leave, roles)
-
-2. **Workspace API Endpoints**
-   - `POST /api/v1/workspaces` - Create workspace
-   - `GET /api/v1/workspaces` - List user's workspaces (with node counts)
-   - `GET /api/v1/workspaces/:id` - Get workspace details + nodes
-   - `POST /api/v1/workspaces/join` - Join by invite code
-   - `POST /api/v1/workspaces/:id/leave` - Leave workspace
-   - `DELETE /api/v1/workspaces/:id` - Delete workspace (owner only)
-   - `POST /api/v1/workspaces/:id/regenerate-invite` - New invite code
-   - `GET /api/v1/workspaces/:id/nodes` - Get workspace's nodes
-
-3. **NodeManager Workspace Support**
-   - `nodeWorkspaces` map tracks node → workspace membership
-   - `getNodesForWorkspace(workspaceId)` - Filter nodes by workspace
-   - `addNodeToWorkspace()` / `removeNodeFromWorkspace()` - Runtime updates
-   - `findNodeForJobInWorkspace()` - Job dispatch filtered by workspace
-   - Nodes can send `workspace_ids` array on registration
-
-4. **Workspace.tsx Rewrite**
-   - Fully wired to API (no more localStorage)
-   - Create/Join/Leave/Delete workspaces
-   - Shows real node counts per workspace
-   - Invite code copy + regeneration
-   - Member avatars with roles
-
-### How Nodes Join Workspaces
-
-Option 1: **Via API** (after node connects)
-```javascript
-nodeManager.addNodeToWorkspace(nodeId, workspaceId)
-```
-
-Option 2: **On Registration** (node sends workspace_ids)
-```json
-{
-  "type": "register",
-  "capabilities": {...},
-  "workspace_ids": ["workspace-uuid-here"]
-}
-```
-
-### Next Steps (Future)
-- Add workspace selector to Node page in UI
-- Let users pick which workspaces their node joins
-- Job submission scoped to workspace
-
----
 
 ## Project Structure
-
 ```
 /mnt/d/modchain/
-├── HANDOFF.md                   # This file
-├── users.json                   # User accounts (hashed passwords)
-├── keys.json                    # Legacy invite keys
-├── workspaces.json              # NEW: Workspace data
 ├── src/
-│   ├── orchestrator/            # Backend API (Express + TypeScript)
-│   │   └── src/
-│   │       ├── index.ts         # Main server + routes
-│   │       ├── middleware/auth.ts
-│   │       └── services/
-│   │           ├── node-manager.ts    # Node pool management
-│   │           ├── workspace-manager.ts # NEW: Workspace management
-│   │           └── ...
-│   ├── desktop/                 # Frontend (React + Vite)
-│   │   └── src/
-│   │       ├── App.tsx          # Main app (now "OtherThing")
-│   │       └── pages/
-│   │           ├── Login.tsx    # Login (now "OtherThing")
-│   │           ├── Workspace.tsx # Workspace UI (needs API wiring)
-│   │           └── FlowBuilder.tsx
-│   └── node-agent/              # Rust compute node
-└── docker/
+│   ├── desktop/          # React frontend (Vite)
+│   ├── orchestrator/     # Node.js backend (Express + WebSocket)
+│   ├── node-electron/    # Native node installer (Electron) [NEW - IN PROGRESS]
+│   ├── cli/              # CLI tools
+│   └── mcp-adapters/     # MCP protocol adapters
+├── pnpm-workspace.yaml
+└── tasks.json            # Task persistence file
 ```
 
----
+## Key Features Built
 
-## Key Files Modified
+### 1. Workspace Dashboard (`/workspace/:id`)
+- **File**: `src/desktop/src/pages/WorkspaceDetail.tsx`
+- Kanban board with drag-and-drop (Todo/In Progress/Done)
+- Console with built-in commands (help, nodes, members, stats, tasks, clear)
+- Resources tab showing connected nodes
 
-| File | What Changed |
-|------|--------|
-| `src/orchestrator/src/services/workspace-manager.ts` | NEW - Workspace CRUD + membership |
-| `src/orchestrator/src/services/node-manager.ts` | Added workspace tracking + filtering |
-| `src/orchestrator/src/index.ts` | Added workspace API routes |
-| `src/desktop/src/pages/Workspace.tsx` | Rewrote to use API |
-| `src/desktop/src/pages/Login.tsx` | Rebranded to OtherThing |
-| `src/desktop/src/App.tsx` | Rebranded header to OtherThing |
+### 2. Task Management
+- **Backend**: `src/orchestrator/src/services/task-manager.ts`
+- **Endpoints**: GET/POST/PATCH/DELETE `/api/v1/workspaces/:id/tasks`
+- Persists to `tasks.json` file
 
----
+### 3. Node Control Page
+- **File**: `src/desktop/src/pages/NodeControl.tsx`
+- Health check system (Orchestrator/Node/Hardware status)
+- Platform-specific download buttons (Windows .exe, macOS .dmg, Linux .AppImage)
+- Hardware detection via native node API on port 3847
+- WebSocket connection to orchestrator for web-based node mode
 
-## Tech Stack
-- **Backend**: Express.js + TypeScript + tsx (hot reload)
-- **Frontend**: React 18 + Vite + TypeScript
-- **Node Agent**: Rust (Tauri for desktop)
-- **Auth**: bcrypt passwords + session tokens
-- **Storage**: JSON files (users.json, keys.json, workspaces.json)
+## Electron Native Node (IN PROGRESS)
 
----
+### Location
+`/mnt/d/modchain/src/node-electron/`
 
-## Notes
-- Invite key login (`7480836b`) still works as legacy fallback
-- Sessions are in-memory (restart clears them)
-- The "Install RhizOS" hint is placeholder for future native app features
+### Status
+- [x] Package.json configured with electron-builder
+- [x] TypeScript setup
+- [x] Main process (`src/main.ts`) - window, tray, IPC handlers
+- [x] Hardware detection (`src/hardware.ts`) - uses systeminformation
+- [x] Node service (`src/node-service.ts`) - WebSocket connection, job execution
+- [x] Preload script (`src/preload.ts`) - contextBridge API
+- [x] UI (`src/index.html`) - full dashboard UI
+- [x] Icons created (PNG)
+- [x] **Linux AppImage built** - `release/OtherThing-Node.AppImage` (104MB)
+- [ ] Windows .exe build (run `pnpm dist:win`)
+- [ ] macOS .dmg build (run `pnpm dist:mac`)
+- [ ] Upload installers to production server `/downloads/` directory
+
+### Build Commands
+```bash
+cd /mnt/d/modchain/src/node-electron
+pnpm build                 # Compile TypeScript
+pnpm dist:linux           # Build Linux AppImage
+pnpm dist:win             # Build Windows installer
+pnpm dist:mac             # Build macOS dmg
+```
+
+### Native Node Features
+- Runs HTTP server on port 3847 for hardware detection
+- WebSocket connection to orchestrator
+- System tray integration
+- Auto-reconnect on disconnect
+- Job execution (shell commands, docker containers)
+- Hardware detection using `systeminformation` library
+
+### API Endpoints (localhost:3847)
+- `GET /hardware` - Returns full hardware info (CPU, RAM, GPUs, storage)
+- `GET /status` - Returns node running status
+
+## Frontend Download Links
+The Node page (`NodeControl.tsx`) links to:
+- `/downloads/OtherThing-Node-Setup.exe` (Windows)
+- `/downloads/OtherThing-Node.dmg` (macOS)
+- `/downloads/OtherThing-Node.AppImage` (Linux)
+
+These files need to be uploaded to nginx's `/usr/share/nginx/html/downloads/` on production.
+
+## Next Steps
+1. Build Windows installer: `pnpm dist:win`
+2. Build macOS installer: `pnpm dist:mac` (may need macOS for signing)
+3. Create `/downloads/` directory on production server
+4. Upload built installers to production
+5. Test the full flow: download → install → detect hardware → start node
+
+## Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `src/desktop/src/pages/NodeControl.tsx` | Node page with download buttons |
+| `src/desktop/src/pages/WorkspaceDetail.tsx` | Workspace dashboard with Kanban |
+| `src/orchestrator/src/index.ts` | Main backend with all API routes |
+| `src/orchestrator/src/services/task-manager.ts` | Task CRUD operations |
+| `src/node-electron/src/main.ts` | Electron main process |
+| `src/node-electron/src/hardware.ts` | Hardware detection |
+| `src/node-electron/src/node-service.ts` | WebSocket node client |
+
+## Git Status
+- All changes committed to `main` branch
+- Remote: https://github.com/Huck-dev/rhizos-cloud.git
+- Note: Commits should NOT include Claude as co-author per user preference
