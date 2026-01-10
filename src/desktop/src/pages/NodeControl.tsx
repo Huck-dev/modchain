@@ -144,10 +144,11 @@ export function NodeControl() {
       } else {
         throw new Error('Node not responding');
       }
-    } catch {
+    } catch (err) {
       // Native node not running - show browser-detectable info only
       setHealthStatus(prev => ({ ...prev, hardware: 'not_detected', node: 'not_installed' }));
-      addLog('Native node not detected', 'error');
+      addLog(`Native node not detected: ${err}`, 'error');
+      console.error('Hardware detection error:', err);
       addLog('Install the native node for accurate hardware detection', 'info');
 
       // Show only what browser can detect
