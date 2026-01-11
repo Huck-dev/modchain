@@ -19,6 +19,13 @@ interface LogEntry {
   type: 'info' | 'success' | 'error';
 }
 
+interface ResourceLimits {
+  cpuCores?: number;
+  ramPercent?: number;
+  storageGb?: number;
+  gpuVramPercent?: number[];
+}
+
 export class NodeService extends EventEmitter {
   private ws: WebSocket | null = null;
   private running = false;
@@ -30,6 +37,7 @@ export class NodeService extends EventEmitter {
   private workspaceIds: string[] = [];
   private hardware: HardwareInfo | null = null;
   private currentJobs: Map<string, Job> = new Map();
+  private resourceLimits: ResourceLimits = {};
 
   constructor(defaultOrchestratorUrl: string) {
     super();
@@ -150,6 +158,18 @@ export class NodeService extends EventEmitter {
             case 'job_cancelled':
               this.log(`Job cancelled: ${msg.job_id}`, 'info');
               this.currentJobs.delete(msg.job_id);
+              break;
+
+            case 'update_limits':
+              this.resourceLimits = msg.limits || {};
+              this.log(`Resource limits updated: CPU=${msg.limits?.cpuCores || 'all'} cores, RAM=${msg.limits?.ramPercent || 100}%`, 'success');
+              this.emit('limitsChange', this.resourceLimits);
+              break;
+
+            case 'workspaces_updated':
+              this.workspaceIds = msg.workspaceIds || [];
+              this.log(`Assigned to ${this.workspaceIds.length} workspace(s)`, 'success');
+              this.emit('statusChange');
               break;
 
             case 'error':
@@ -303,5 +323,13 @@ export class NodeService extends EventEmitter {
 
   getNodeId(): string | null {
     return this.nodeId;
+  }
+
+  getResourceLimits(): ResourceLimits {
+    return this.resourceLimits;
+  }
+
+  getWorkspaceIds(): string[] {
+    return this.workspaceIds;
   }
 }

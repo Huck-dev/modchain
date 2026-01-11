@@ -495,6 +495,69 @@ app.get('/api/v1/my-nodes', (req, res) => {
   res.json({ nodes });
 });
 
+// Assign a node to workspaces
+app.post('/api/v1/nodes/:nodeId/workspaces', requireAuth, (req, res) => {
+  const { nodeId } = req.params;
+  const { workspaceIds } = req.body;
+  const session = (req as any).session;
+
+  if (!workspaceIds || !Array.isArray(workspaceIds)) {
+    res.status(400).json({ error: 'workspaceIds array is required' });
+    return;
+  }
+
+  // Verify user is a member of all specified workspaces
+  for (const wsId of workspaceIds) {
+    if (!workspaceManager.isMember(wsId, session.userId)) {
+      res.status(403).json({ error: `Not a member of workspace ${wsId}` });
+      return;
+    }
+  }
+
+  // Add node to each workspace
+  let added = 0;
+  for (const wsId of workspaceIds) {
+    if (nodeManager.addNodeToWorkspace(nodeId, wsId)) {
+      added++;
+    }
+  }
+
+  // Also notify the node of its workspace assignments
+  nodeManager.sendToNode(nodeId, {
+    type: 'workspaces_updated',
+    workspaceIds,
+  } as any);
+
+  res.json({
+    success: true,
+    nodeId,
+    workspaces: nodeManager.getNodeWorkspaces(nodeId),
+    message: `Node assigned to ${added} workspace(s)`
+  });
+});
+
+// Update resource limits for a node
+app.post('/api/v1/nodes/:nodeId/limits', requireAuth, (req, res) => {
+  const { nodeId } = req.params;
+  const { cpuCores, ramPercent, storageGb, gpuVramPercent } = req.body;
+
+  const limits = {
+    cpuCores: cpuCores !== undefined ? Number(cpuCores) : undefined,
+    ramPercent: ramPercent !== undefined ? Number(ramPercent) : undefined,
+    storageGb: storageGb !== undefined ? Number(storageGb) : undefined,
+    gpuVramPercent: gpuVramPercent,
+  };
+
+  const success = nodeManager.updateNodeLimits(nodeId, limits);
+
+  if (!success) {
+    res.status(404).json({ error: 'Node not found or not connected' });
+    return;
+  }
+
+  res.json({ success: true, nodeId, limits });
+});
+
 // Register a new node (HTTP endpoint for initial registration)
 app.post('/api/v1/nodes/register', (req, res) => {
   const result = RegisterNodeRequestSchema.safeParse(req.body);

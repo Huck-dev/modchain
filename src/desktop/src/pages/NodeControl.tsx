@@ -395,6 +395,72 @@ export function NodeControl() {
     );
   };
 
+  // Save resource limits to the connected node
+  const saveResourceLimits = async () => {
+    if (!nodeState.nodeId) {
+      addLog('No node connected', 'error');
+      return;
+    }
+
+    setLoading(true);
+    addLog('Saving resource limits...', 'info');
+
+    try {
+      const res = await authFetch(`/api/v1/nodes/${nodeState.nodeId}/limits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(allocation),
+      });
+
+      if (res.ok) {
+        addLog('Resource limits saved successfully', 'success');
+      } else {
+        const data = await res.json();
+        addLog(`Failed to save limits: ${data.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      addLog(`Error saving limits: ${err}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Assign node to selected workspaces
+  const assignNodeToWorkspaces = async () => {
+    if (!nodeState.nodeId) {
+      addLog('No node connected', 'error');
+      return;
+    }
+
+    if (selectedWorkspaces.length === 0) {
+      addLog('Please select at least one workspace', 'error');
+      return;
+    }
+
+    setLoading(true);
+    addLog('Assigning node to workspaces...', 'info');
+
+    try {
+      const res = await authFetch(`/api/v1/nodes/${nodeState.nodeId}/workspaces`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceIds: selectedWorkspaces }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        addLog(`Node assigned to ${data.workspaces.length} workspace(s)`, 'success');
+      } else {
+        const data = await res.json();
+        addLog(`Failed to assign: ${data.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      addLog(`Error assigning workspaces: ${err}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatMemory = (mb: number) => mb > 0 ? `${(mb / 1024).toFixed(1)} GB` : '--';
 
   const StatusIcon = ({ status }: { status: 'checking' | 'online' | 'offline' | 'not_installed' | 'stopped' | 'running' | 'error' | 'not_detected' | 'detected' | 'detecting' }) => {
@@ -780,10 +846,13 @@ export function NodeControl() {
               ))}
             </div>
 
-            <div style={{ marginTop: 'var(--gap-lg)', padding: 'var(--gap-md)', background: 'rgba(0, 212, 255, 0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(0, 212, 255, 0.2)' }}>
+            <div style={{ marginTop: 'var(--gap-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Resource limits will be applied to the native node app. Changes take effect on next job assignment.
+                Resource limits are sent to the node app immediately.
               </div>
+              <CyberButton variant="primary" icon={Zap} onClick={saveResourceLimits} loading={loading} disabled={!nodeState.nodeId}>
+                APPLY LIMITS
+              </CyberButton>
             </div>
           </div>
         </div>
@@ -794,9 +863,9 @@ export function NodeControl() {
         <div className="cyber-card-header">
           <span className="cyber-card-title">
             <Users size={14} style={{ marginRight: '0.5rem' }} />
-            CONTRIBUTE TO WORKSPACES
+            {isNativeNode ? 'ASSIGN NODE TO WORKSPACES' : 'CONTRIBUTE TO WORKSPACES'}
           </span>
-          <CyberButton icon={RefreshCw} onClick={loadWorkspaces} disabled={loadingWorkspaces || nodeState.running}>
+          <CyberButton icon={RefreshCw} onClick={loadWorkspaces} disabled={loadingWorkspaces}>
             REFRESH
           </CyberButton>
         </div>
@@ -810,8 +879,7 @@ export function NodeControl() {
               {workspaces.map(ws => (
                 <button
                   key={ws.id}
-                  onClick={() => !nodeState.running && toggleWorkspace(ws.id)}
-                  disabled={nodeState.running}
+                  onClick={() => toggleWorkspace(ws.id)}
                   style={{
                     padding: '10px 16px',
                     background: selectedWorkspaces.includes(ws.id)
@@ -820,8 +888,7 @@ export function NodeControl() {
                     border: `1px solid ${selectedWorkspaces.includes(ws.id) ? 'var(--primary)' : 'rgba(255,255,255,0.1)'}`,
                     borderRadius: 'var(--radius-sm)',
                     color: selectedWorkspaces.includes(ws.id) ? 'var(--primary)' : 'var(--text-secondary)',
-                    cursor: nodeState.running ? 'not-allowed' : 'pointer',
-                    opacity: nodeState.running ? 0.6 : 1,
+                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
@@ -840,9 +907,16 @@ export function NodeControl() {
               ))}
             </div>
           )}
-          {!nodeState.running && selectedWorkspaces.length > 0 && (
-            <div style={{ marginTop: 'var(--gap-md)', fontSize: '0.8rem', color: 'var(--success)' }}>
-              ✓ Selected {selectedWorkspaces.length} workspace(s) - ready to start
+          {selectedWorkspaces.length > 0 && (
+            <div style={{ marginTop: 'var(--gap-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--success)' }}>
+                ✓ Selected {selectedWorkspaces.length} workspace(s)
+              </div>
+              {isNativeNode && nodeState.nodeId && (
+                <CyberButton variant="primary" icon={Users} onClick={assignNodeToWorkspaces} loading={loading}>
+                  ASSIGN TO WORKSPACES
+                </CyberButton>
+              )}
             </div>
           )}
         </div>

@@ -366,6 +366,38 @@ export class NodeManager {
   }
 
   /**
+   * Send a message to a specific node
+   */
+  sendToNode(nodeId: string, message: OrchestratorMessage): boolean {
+    const node = this.nodes.get(nodeId);
+    if (!node) return false;
+    this.send(node.ws, message);
+    return true;
+  }
+
+  /**
+   * Update resource limits for a node
+   */
+  updateNodeLimits(nodeId: string, limits: {
+    cpuCores?: number;
+    ramPercent?: number;
+    storageGb?: number;
+    gpuVramPercent?: number[];
+  }): boolean {
+    const node = this.nodes.get(nodeId);
+    if (!node) return false;
+
+    // Send limits update to the node
+    this.send(node.ws, {
+      type: 'update_limits',
+      limits,
+    } as any);
+
+    console.log(`[NodeManager] Sent resource limits to node ${nodeId}:`, limits);
+    return true;
+  }
+
+  /**
    * Find a node for a job, optionally filtered by workspace
    */
   findNodeForJobInWorkspace(requirements: JobRequirements, workspaceId?: string): ConnectedNode | null {
