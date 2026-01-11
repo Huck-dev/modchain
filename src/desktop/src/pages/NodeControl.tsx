@@ -3,6 +3,19 @@ import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal, Users, Download, Activ
 import { CyberButton, ActivityLog } from '../components';
 import { authFetch } from '../App';
 
+// UUID helper that works on HTTP (non-secure contexts)
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for HTTP
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 interface HardwareInfo {
   cpu: {
     model: string;
@@ -240,6 +253,13 @@ export function NodeControl() {
     loadWorkspaces();
     runHealthCheck();
     detectHardware(); // Auto-detect nodes on mount
+
+    // Poll for node status every 10 seconds to detect disconnects
+    const pollInterval = setInterval(() => {
+      detectHardware();
+    }, 10000);
+
+    return () => clearInterval(pollInterval);
   }, [loadWorkspaces, runHealthCheck, detectHardware]);
 
   useEffect(() => {
@@ -277,7 +297,7 @@ export function NodeControl() {
         const registerMsg = {
           type: 'register',
           capabilities: hardware ? {
-            node_id: `web-${crypto.randomUUID().slice(0, 8)}`,
+            node_id: `web-${generateUUID().slice(0, 8)}`,
             gpus: hardware.gpus.map(g => ({
               vendor: g.vendor || 'unknown',
               model: g.model,
@@ -300,7 +320,7 @@ export function NodeControl() {
             },
             mcp_adapters: [],
           } : {
-            node_id: `web-${crypto.randomUUID().slice(0, 8)}`,
+            node_id: `web-${generateUUID().slice(0, 8)}`,
             gpus: [],
             cpu: { model: 'Web Browser', cores: navigator.hardwareConcurrency || 1, threads: navigator.hardwareConcurrency || 1, features: [] },
             memory: { total_mb: 1024, available_mb: 512 },

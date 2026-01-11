@@ -8,6 +8,19 @@ import {
 import { CyberButton } from '../components';
 import { authFetch } from '../App';
 
+// UUID helper that works on HTTP (non-secure contexts)
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for HTTP
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 // Types
 interface Task {
   id: string;
@@ -145,7 +158,7 @@ export function WorkspaceDetail() {
     if (!taskForm.title.trim() || !id) return;
 
     const newTask: Task = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       title: taskForm.title,
       description: taskForm.description,
       status: 'todo',
