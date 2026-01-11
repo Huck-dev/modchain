@@ -85,6 +85,7 @@ export function WorkspaceDetail() {
   // Task modal state
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskError, setTaskError] = useState<string | null>(null);
   const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
@@ -157,6 +158,8 @@ export function WorkspaceDetail() {
   const createTask = async () => {
     if (!taskForm.title.trim() || !id) return;
 
+    setTaskError(null);
+
     const newTask: Task = {
       id: generateUUID(),
       title: taskForm.title,
@@ -177,17 +180,20 @@ export function WorkspaceDetail() {
       if (res.ok) {
         const data = await res.json();
         setTasks(prev => [...prev, data.task]);
+        setTaskForm({ title: '', description: '', priority: 'medium' });
+        setShowTaskModal(false);
       } else {
-        // Fallback to local
-        setTasks(prev => [...prev, newTask]);
+        // Show error to user
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.error || `Failed to create task (${res.status})`;
+        setTaskError(errorMsg);
+        console.error('Task creation failed:', res.status, errorData);
       }
-    } catch {
-      // Fallback to local
-      setTasks(prev => [...prev, newTask]);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Network error - could not reach server';
+      setTaskError(errorMsg);
+      console.error('Task creation error:', err);
     }
-
-    setTaskForm({ title: '', description: '', priority: 'medium' });
-    setShowTaskModal(false);
   };
 
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
@@ -425,7 +431,7 @@ Members: ${workspace?.members.length || 0}`
             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
               {tasks.length} task{tasks.length !== 1 ? 's' : ''} • {tasksByStatus.done.length} completed
             </span>
-            <CyberButton variant="primary" icon={Plus} onClick={() => setShowTaskModal(true)}>
+            <CyberButton variant="primary" icon={Plus} onClick={() => { setTaskError(null); setShowTaskModal(true); }}>
               ADD TASK
             </CyberButton>
           </div>
@@ -818,6 +824,19 @@ Members: ${workspace?.members.length || 0}`
               <span className="cyber-card-title">{editingTask ? 'EDIT TASK' : 'NEW TASK'}</span>
             </div>
             <div className="cyber-card-body">
+              {taskError && (
+                <div style={{
+                  marginBottom: 'var(--gap-md)',
+                  padding: 'var(--gap-sm) var(--gap-md)',
+                  background: 'rgba(255, 100, 100, 0.1)',
+                  border: '1px solid var(--error)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--error)',
+                  fontSize: '0.85rem',
+                }}>
+                  {taskError}
+                </div>
+              )}
               <div style={{ marginBottom: 'var(--gap-md)' }}>
                 <label style={{
                   display: 'block',
