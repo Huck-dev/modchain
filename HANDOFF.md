@@ -10,6 +10,7 @@
 - **SSH Key Passphrase**: `Leonidas12!`
 - **Sudo Password**: `bAttlezone12a!`
 - **Remote Script**: `/tmp/remote.sh` (handles SSH with expect)
+- **Note**: Repo is PRIVATE - must make public temporarily for server to git pull
 
 ## Current State (Jan 11 2026)
 
@@ -19,8 +20,7 @@
    - WebSocket connection to orchestrator with auto-reconnect
    - Receives resource limit updates from web app
    - Receives workspace assignment updates
-   - Windows installer built: `release/OtherThing-Node-Setup.exe` (73MB)
-   - **NOTE**: New installer needs to be uploaded to prod (upload was stuck)
+   - Windows installer on prod: `/usr/share/nginx/html/downloads/OtherThing-Node-Setup.exe` (73MB)
 
 2. **Web App** (`src/desktop/`)
    - Node page auto-detects connected nodes (polls every 10 seconds)
@@ -28,28 +28,17 @@
    - "Apply Limits" button sends limits to connected node
    - "Assign to Workspaces" button assigns node to selected workspaces
    - Workspace dashboard with Kanban board
+   - Task/ticket creation with error feedback
    - Fixed: `crypto.randomUUID` fallback for HTTP (non-secure) contexts
 
 3. **Orchestrator** (`src/orchestrator/`)
    - `GET /api/v1/my-nodes` - Returns all connected nodes (no auth required)
    - `POST /api/v1/nodes/:nodeId/workspaces` - Assign node to workspaces
    - `POST /api/v1/nodes/:nodeId/limits` - Send resource limits to node
-   - Task CRUD endpoints for workspaces (require auth)
+   - Task CRUD endpoints for workspaces (require auth) - WORKING
 
-### Known Issues / In Progress
-
-1. **Installer Upload Stuck**
-   - New Electron installer with limit handling built locally
-   - Location: `D:\modchain\src\node-electron\release\OtherThing-Node-Setup.exe`
-   - SCP upload to prod server keeps getting stuck
-   - Old installer (Jan 10) still on prod at `/usr/share/nginx/html/downloads/`
-   - **TODO**: Upload new installer to prod
-
-2. **Ticket/Task Creation**
-   - User reports "creating a ticket does nothing"
-   - Endpoints exist: `POST /api/v1/workspaces/:id/tasks`
-   - Requires authentication - check if user is logged in
-   - Check browser Network tab for 401 errors
+### No Known Issues
+All previously reported issues have been resolved.
 
 ## Key Files
 
@@ -65,13 +54,14 @@
 | File | Purpose |
 |------|---------|
 | `src/desktop/src/pages/NodeControl.tsx` | Node page - resource sliders, workspace assignment, 10s polling |
-| `src/desktop/src/pages/WorkspaceDetail.tsx` | Workspace dashboard with Kanban |
+| `src/desktop/src/pages/WorkspaceDetail.tsx` | Workspace dashboard with Kanban, task creation |
 
 ### Orchestrator
 | File | Purpose |
 |------|---------|
 | `src/orchestrator/src/index.ts` | Main backend - all API endpoints |
 | `src/orchestrator/src/services/node-manager.ts` | Node management, `sendToNode()`, `updateNodeLimits()` |
+| `src/orchestrator/src/services/task-manager.ts` | Task CRUD, persists to tasks.json |
 
 ## API Endpoints (Key ones)
 
@@ -85,11 +75,17 @@
 
 ## Deploy Commands
 ```bash
+# IMPORTANT: Repo is private - make public first
+gh repo edit --visibility public
+
 # Pull and rebuild frontend
 /tmp/remote.sh "cd /opt/rhizos-cloud && echo 'bAttlezone12a!' | sudo -S git pull"
 /tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S rm -rf dist && echo 'bAttlezone12a!' | sudo -S pnpm build"
 /tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/assets /usr/share/nginx/html/index.html && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/"
 /tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
+
+# Make private again
+gh repo edit --visibility private
 ```
 
 ## Build Electron Installer (Windows)
@@ -101,25 +97,32 @@ pnpm build && cp src/index.html dist/
 powershell.exe -ExecutionPolicy Bypass -Command "\$env:Path = 'C:\\Program Files\\nodejs;' + \$env:Path; cd D:\\modchain\\src\\node-electron; npm run dist:win"
 ```
 
-## Upload Installer to Prod (NEEDS FIXING)
+## Upload Installer to Prod
 ```bash
-# This keeps getting stuck - try alternative methods:
-sshpass -p 'bAttlezone12a!' scp /mnt/d/modchain/src/node-electron/release/OtherThing-Node-Setup.exe administrator@155.117.46.228:/tmp/
+# Use GitHub Releases (SCP/rsync hangs on large files)
+# 1. Create release with installer
+gh release create v0.1.x "/mnt/d/modchain/src/node-electron/release/OtherThing-Node-Setup.exe" --title "vX.X.X" --notes "Description"
 
-# Then move to downloads:
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S mv /tmp/OtherThing-Node-Setup.exe /usr/share/nginx/html/downloads/"
+# 2. Make repo public temporarily
+gh repo edit --visibility public
+
+# 3. Download on server
+/tmp/remote.sh "cd /usr/share/nginx/html/downloads && echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node-Setup.exe 'https://github.com/Huck-dev/rhizos-cloud/releases/download/v0.1.x/OtherThing-Node-Setup.exe'"
+
+# 4. Make repo private again
+gh repo edit --visibility private
 ```
 
 ## Git
 - Remote: https://github.com/Huck-dev/rhizos-cloud.git
 - Branch: main
-- Latest commit: `12fec51` - "Fix crypto.randomUUID for HTTP and add node status polling"
+- Latest commit: `ae048d9` - "Fix crypto.randomUUID in task-manager backend"
+- GitHub Release: v0.1.1 (contains Windows installer)
 
 ## Next Steps
-1. **Upload new installer to prod** - SCP keeps getting stuck, try rsync or split file
-2. **Debug ticket creation** - Check browser Network tab, ensure user is logged in
-3. **Test full flow**: Install new Electron app, connect, assign to workspace, apply limits
-4. **Consider HTTPS** - Let's Encrypt would fix remaining browser API issues
+1. **Test full flow**: Install Electron app, connect to orchestrator, assign to workspace, create tasks
+2. **Consider HTTPS** - Let's Encrypt would improve security and fix some browser API limitations
+3. **Add more features** - Task assignment, due dates, notifications
 
 ## User's Hardware
 - CPU: Ryzen Threadripper PRO 5995WX (64 cores, 128 threads)
