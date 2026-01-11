@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 
 export interface Task {
   id: string;
@@ -63,7 +64,7 @@ export class TaskManager {
     }
   ): Task {
     const task: Task = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       workspaceId,
       title: data.title,
       description: data.description || '',
