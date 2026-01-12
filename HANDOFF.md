@@ -1,8 +1,8 @@
-# OtherThing Project Handoff Document
-**Last Updated**: January 11, 2026
+# OtherThing/RhizOS Cloud - Handoff Document
+**Last Updated**: January 12, 2026
 
 ## Project Overview
-**OtherThing** is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, and contribute compute resources via native node applications.
+**OtherThing** is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, contribute compute resources via native node applications, share API keys, and build/run AI flows collaboratively.
 
 ## Production Server
 - **URL**: http://155.117.46.228
@@ -10,122 +10,207 @@
 - **SSH Key Passphrase**: `Leonidas12!`
 - **Sudo Password**: `bAttlezone12a!`
 - **Remote Script**: `/tmp/remote.sh` (handles SSH with expect)
-- **Note**: Repo is PRIVATE - must make public temporarily for server to git pull
+- **GitHub**: https://github.com/Huck-dev/rhizos-cloud (PRIVATE repo)
+- **Systemd Services**: `nginx`, `otherthing`
 
-## Current State (Jan 11 2026)
+## Current State (Jan 12, 2026)
 
 ### What's Working
-1. **Electron Node App** (`src/node-electron/`)
-   - Hardware detection and display (CPU, RAM, GPUs, storage)
-   - WebSocket connection to orchestrator with auto-reconnect
-   - Receives resource limit updates from web app
-   - Receives workspace assignment updates
-   - Windows installer on prod: `/usr/share/nginx/html/downloads/OtherThing-Node-Setup.exe` (73MB)
+1. **Workspace Features**
+   - API Keys management (OpenAI, Anthropic, Google, Groq, custom)
+   - Workspace Flows (create, edit, delete)
+   - Resource Usage Tracking (tokens, compute time, costs)
+   - Task/Ticket Kanban board
+   - Console with workspace commands
+   - Member management with invite codes
 
-2. **Web App** (`src/desktop/`)
-   - Node page auto-detects connected nodes (polls every 10 seconds)
-   - Resource allocation sliders (CPU cores, RAM %, Storage GB, GPU VRAM %)
-   - "Apply Limits" button sends limits to connected node
-   - "Assign to Workspaces" button assigns node to selected workspaces
-   - Workspace dashboard with Kanban board
-   - Task/ticket creation with error feedback
-   - Fixed: `crypto.randomUUID` fallback for HTTP (non-secure) contexts
+2. **Node Management**
+   - Node ownership/claiming system
+   - Resource limit controls (CPU, RAM, GPU, Storage)
+   - Workspace assignment
+   - Health check with 30s timeout, 15s heartbeat
+   - Auto-cleanup of stale nodes
 
-3. **Orchestrator** (`src/orchestrator/`)
-   - `GET /api/v1/my-nodes` - Returns all connected nodes (no auth required)
-   - `POST /api/v1/nodes/:nodeId/workspaces` - Assign node to workspaces
-   - `POST /api/v1/nodes/:nodeId/limits` - Send resource limits to node
-   - Task CRUD endpoints for workspaces (require auth) - WORKING
+3. **Electron Node App**
+   - Windows installer: `/usr/share/nginx/html/downloads/OtherThing-Node-Setup.exe`
+   - Linux AppImage: `/usr/share/nginx/html/downloads/OtherThing-Node.AppImage`
+   - GitHub Release: v0.1.2
 
-### No Known Issues
-All previously reported issues have been resolved.
+## Key Project Structure
+```
+/mnt/d/modchain/
+├── src/
+│   ├── desktop/                 # React frontend (Vite)
+│   │   └── src/pages/
+│   │       ├── WorkspaceDetail.tsx  # Workspace view (5 tabs)
+│   │       ├── NodeControl.tsx      # Node management
+│   │       └── FlowBuilder.tsx      # Main flow builder
+│   │
+│   ├── orchestrator/            # Backend (Express + WebSocket)
+│   │   └── src/
+│   │       ├── index.ts         # API endpoints
+│   │       └── services/
+│   │           ├── workspace-manager.ts  # Workspaces, flows, API keys, usage
+│   │           ├── node-manager.ts       # Node connections, ownership
+│   │           └── task-manager.ts       # Task/ticket management
+│   │
+│   ├── node-electron/           # Desktop node app (Electron)
+│   └── shared/                  # Shared schemas (flows.ts)
+│
+└── workspaces.json              # Workspace data (on server: /opt/rhizos-cloud/)
+```
 
-## Key Files
+## WorkspaceDetail.tsx Tabs
+1. **Tasks** - Kanban board (todo, in_progress, done)
+2. **Flows** - Create/manage workspace flows with EDIT/RUN buttons
+3. **Console** - Command interface (help, nodes, members, stats, tasks)
+4. **Resources** - Connected nodes, usage summary, members list
+5. **API Keys** - Add/remove provider API keys
 
-### Electron App
-| File | Purpose |
-|------|---------|
-| `src/node-electron/src/main.ts` | Main process, HTTP server on 3847, IPC |
-| `src/node-electron/src/hardware.ts` | Hardware detection via systeminformation |
-| `src/node-electron/src/node-service.ts` | WebSocket connection, handles `update_limits` and `workspaces_updated` messages |
-| `src/node-electron/src/index.html` | Simple UI |
+## Key Interfaces (workspace-manager.ts)
 
-### Web App
-| File | Purpose |
-|------|---------|
-| `src/desktop/src/pages/NodeControl.tsx` | Node page - resource sliders, workspace assignment, 10s polling |
-| `src/desktop/src/pages/WorkspaceDetail.tsx` | Workspace dashboard with Kanban, task creation |
+```typescript
+interface Workspace {
+  id: string;
+  name: string;
+  description: string;
+  isPrivate: boolean;
+  inviteCode: string;
+  ownerId: string;
+  members: WorkspaceMember[];
+  apiKeys: WorkspaceApiKey[];
+  flows: WorkspaceFlow[];
+  resourceUsage: WorkspaceResourceUsage;
+  createdAt: string;
+}
 
-### Orchestrator
-| File | Purpose |
-|------|---------|
-| `src/orchestrator/src/index.ts` | Main backend - all API endpoints |
-| `src/orchestrator/src/services/node-manager.ts` | Node management, `sendToNode()`, `updateNodeLimits()` |
-| `src/orchestrator/src/services/task-manager.ts` | Task CRUD, persists to tasks.json |
+interface WorkspaceApiKey {
+  id: string;
+  provider: 'openai' | 'anthropic' | 'google' | 'groq' | 'custom';
+  name: string;
+  key: string;
+  addedBy: string;
+  addedAt: string;
+}
 
-## API Endpoints (Key ones)
+interface WorkspaceFlow {
+  id: string;
+  name: string;
+  description: string;
+  flow: any; // nodes, connections
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
-| Endpoint | Auth | Purpose |
-|----------|------|---------|
-| `GET /api/v1/my-nodes` | No | Get all connected nodes |
-| `POST /api/v1/nodes/:nodeId/workspaces` | Yes | Assign node to workspaces |
-| `POST /api/v1/nodes/:nodeId/limits` | Yes | Send resource limits to node |
-| `GET /api/v1/workspaces/:id/tasks` | Yes | Get tasks for workspace |
-| `POST /api/v1/workspaces/:id/tasks` | Yes | Create task |
+interface ResourceUsageEntry {
+  id: string;
+  flowId?: string;
+  flowName?: string;
+  type: 'api_call' | 'compute' | 'storage';
+  provider?: string;
+  tokensUsed?: number;
+  computeSeconds?: number;
+  costCents: number;
+  userId: string;
+  timestamp: string;
+}
+```
+
+## API Endpoints
+
+### Workspace API Keys
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/workspaces/:id/api-keys` | GET | List keys (masked) |
+| `/api/v1/workspaces/:id/api-keys` | POST | Add key |
+| `/api/v1/workspaces/:id/api-keys/:keyId` | DELETE | Remove key |
+
+### Workspace Flows
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/workspaces/:id/flows` | GET | List flows |
+| `/api/v1/workspaces/:id/flows` | POST | Create flow |
+| `/api/v1/workspaces/:id/flows/:flowId` | GET | Get flow |
+| `/api/v1/workspaces/:id/flows/:flowId` | PATCH | Update flow |
+| `/api/v1/workspaces/:id/flows/:flowId` | DELETE | Delete flow |
+
+### Resource Usage
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/workspaces/:id/usage` | GET | Get raw usage |
+| `/api/v1/workspaces/:id/usage/summary` | GET | Get aggregated summary |
+| `/api/v1/workspaces/:id/usage` | POST | Record usage entry |
+
+### Nodes
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/my-nodes` | GET | Get user's visible nodes |
+| `/api/v1/nodes/:nodeId/claim` | POST | Claim unowned node |
+| `/api/v1/nodes/:nodeId/workspaces` | POST | Assign to workspaces |
+| `/api/v1/nodes/:nodeId/limits` | POST | Set resource limits |
 
 ## Deploy Commands
 ```bash
-# IMPORTANT: Repo is private - make public first
-gh repo edit --visibility public
+# 1. Commit and push
+git add -A && git commit -m "message" && git push
 
-# Pull and rebuild frontend
+# 2. Make repo public (required for server pull)
+gh repo edit Huck-dev/rhizos-cloud --visibility public
+
+# 3. Pull on server
 /tmp/remote.sh "cd /opt/rhizos-cloud && echo 'bAttlezone12a!' | sudo -S git pull"
-/tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S rm -rf dist && echo 'bAttlezone12a!' | sudo -S pnpm build"
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/assets /usr/share/nginx/html/index.html && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/"
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
-
-# Make private again
-gh repo edit --visibility private
-```
-
-## Build Electron Installer (Windows)
-```bash
-cd /mnt/d/modchain/src/node-electron
-pnpm build && cp src/index.html dist/
-
-# Build Windows installer (run from WSL):
-powershell.exe -ExecutionPolicy Bypass -Command "\$env:Path = 'C:\\Program Files\\nodejs;' + \$env:Path; cd D:\\modchain\\src\\node-electron; npm run dist:win"
-```
-
-## Upload Installer to Prod
-```bash
-# Use GitHub Releases (SCP/rsync hangs on large files)
-# 1. Create release with installer
-gh release create v0.1.x "/mnt/d/modchain/src/node-electron/release/OtherThing-Node-Setup.exe" --title "vX.X.X" --notes "Description"
-
-# 2. Make repo public temporarily
-gh repo edit --visibility public
-
-# 3. Download on server
-/tmp/remote.sh "cd /usr/share/nginx/html/downloads && echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node-Setup.exe 'https://github.com/Huck-dev/rhizos-cloud/releases/download/v0.1.x/OtherThing-Node-Setup.exe'"
 
 # 4. Make repo private again
-gh repo edit --visibility private
+gh repo edit Huck-dev/rhizos-cloud --visibility private
+
+# 5. Rebuild frontend
+/tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S rm -rf dist && echo 'bAttlezone12a!' | sudo -S pnpm build"
+
+# 6. Deploy and restart
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/assets /usr/share/nginx/html/index.html && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/ && echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
 ```
 
-## Git
-- Remote: https://github.com/Huck-dev/rhizos-cloud.git
-- Branch: main
-- Latest commit: `ae048d9` - "Fix crypto.randomUUID in task-manager backend"
-- GitHub Release: v0.1.1 (contains Windows installer)
+## Useful Server Commands
+```bash
+# Check service status
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl status nginx otherthing --no-pager | head -20"
 
-## Next Steps
-1. **Test full flow**: Install Electron app, connect to orchestrator, assign to workspace, create tasks
-2. **Consider HTTPS** - Let's Encrypt would improve security and fix some browser API limitations
-3. **Add more features** - Task assignment, due dates, notifications
+# View orchestrator logs
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S journalctl -u otherthing --since '5 minutes ago' --no-pager | tail -30"
+
+# Restart services
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
+
+# Check built files
+/tmp/remote.sh "ls -la /usr/share/nginx/html/"
+```
+
+## Build Electron Installer
+```bash
+# Windows (from WSL)
+cd /mnt/d/modchain/src/node-electron
+pnpm build && cp src/index.html dist/
+powershell.exe -ExecutionPolicy Bypass -Command "$env:Path = 'C:\\Program Files\\nodejs;' + $env:Path; cd D:\\modchain\\src\\node-electron; npm run dist:win"
+
+# Linux
+pnpm dist:linux
+```
+
+## TODOs / Known Issues
+1. Flow "EDIT" button links to FlowBuilder but workspace flow loading not implemented
+2. Flow "RUN" button is placeholder (console.log)
+3. Resource tracking needs to be called during actual flow execution
+4. Consider HTTPS (Let's Encrypt) for better security
 
 ## User's Hardware
 - CPU: Ryzen Threadripper PRO 5995WX (64 cores, 128 threads)
 - RAM: 256 GB
 - GPUs: RTX 3070 (8GB), RTX 2060 SUPER (8GB)
 - Storage: 15TB+
+
+## Git Info
+- Remote: https://github.com/Huck-dev/rhizos-cloud.git
+- Branch: main
+- Latest: "Add workspace flows, API keys, and resource tracking"
+- Release: v0.1.2 (Windows + Linux installers)
