@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Bot, TrendingUp, Coins, Database, Brain, Search, Box, Plus, X, Play,
   ChevronRight, Trash2, Copy, Settings, Zap, ArrowRight, GripVertical,
@@ -19,6 +19,7 @@ import {
   estimateDeploymentCost,
 } from '../services/flow-deployer';
 import { useCredentials, useCredentialStoreStatus } from '../context/CredentialContext';
+import { authFetch } from '../App';
 
 // API providers and their settings keys
 const API_PROVIDERS: Record<string, { name: string; settingsKey: string }> = {
@@ -124,7 +125,16 @@ const getModuleIO = (mod: ModuleDefinition) => {
 
 export function FlowBuilder() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Workspace flow mode (when editing a flow from a workspace)
+  const workspaceId = searchParams.get('workspaceId');
+  const workspaceFlowId = searchParams.get('flowId');
+  const autoRun = searchParams.get('run') === 'true';
+  const isWorkspaceMode = !!(workspaceId && workspaceFlowId);
+  const [workspaceFlowLoaded, setWorkspaceFlowLoaded] = useState(false);
+  const [autoRunTriggered, setAutoRunTriggered] = useState(false);
 
   // Credential management
   const { isUnlocked, resolveCredentials, unlock, initialize, isInitialized } = useCredentials();
@@ -216,22 +226,75 @@ export function FlowBuilder() {
     setSavedFlows(flowStorage.listFlows());
   }, []);
 
+  // Load workspace flow when in workspace mode
+  useEffect(() => {
+    if (!isWorkspaceMode || workspaceFlowLoaded) return;
+
+    const loadWorkspaceFlow = async () => {
+      try {
+        const res = await authFetch(`/api/v1/workspaces/${workspaceId}/flows/${workspaceFlowId}`);
+        if (!res.ok) {
+          console.error('Failed to load workspace flow');
+          return;
+        }
+        const data = await res.json();
+        const flow = data.flow;
+
+        setCurrentFlowId(flow.id);
+        setFlowName(flow.name);
+
+        // Convert flow nodes to UI nodes
+        if (flow.flow?.nodes && Array.isArray(flow.flow.nodes)) {
+          setNodes(flow.flow.nodes.map((n: any) => {
+            const moduleDef = RHIZOS_MODULES.find(m => m.id === n.moduleId);
+            return {
+              id: n.id,
+              type: 'module',
+              name: n.moduleName || moduleDef?.name || 'Unknown',
+              category: moduleDef?.category || 'infrastructure',
+              moduleId: n.moduleId,
+              x: n.position?.x || 100,
+              y: n.position?.y || 100,
+              inputs: ['input'],
+              outputs: ['output'],
+              config: n.config || {},
+            };
+          }));
+        } else {
+          // Empty flow - start fresh
+          setNodes([]);
+        }
+
+        // Convert flow connections
+        if (flow.flow?.connections && Array.isArray(flow.flow.connections)) {
+          setConnections(flow.flow.connections.map((c: any) => ({
+            id: c.id,
+            from: { nodeId: c.sourceNodeId, port: c.sourcePort },
+            to: { nodeId: c.targetNodeId, port: c.targetPort },
+          })));
+        } else {
+          setConnections([]);
+        }
+
+        setWorkspaceFlowLoaded(true);
+        setHasUnsavedChanges(false);
+      } catch (err) {
+        console.error('Error loading workspace flow:', err);
+      }
+    };
+
+    loadWorkspaceFlow();
+  }, [isWorkspaceMode, workspaceId, workspaceFlowId, workspaceFlowLoaded]);
+
   // Track unsaved changes
   useEffect(() => {
     setHasUnsavedChanges(true);
   }, [nodes, connections]);
 
   // Save current flow
-  const saveFlow = useCallback(() => {
+  const saveFlow = useCallback(async () => {
     const now = new Date().toISOString();
-    const flow: Flow = {
-      id: currentFlowId || `flow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name: flowName,
-      version: '1.0.0',
-      tags: [],
-      createdAt: currentFlowId ? (flowStorage.getFlow(currentFlowId)?.createdAt || now) : now,
-      updatedAt: now,
-      timeout: 3600,
+    const flowData = {
       nodes: nodes.map(n => ({
         id: n.id,
         moduleId: n.moduleId || n.type,
@@ -248,12 +311,48 @@ export function FlowBuilder() {
       })),
     };
 
+    // If in workspace mode, save to workspace API
+    if (isWorkspaceMode && workspaceId && workspaceFlowId) {
+      try {
+        const res = await authFetch(`/api/v1/workspaces/${workspaceId}/flows/${workspaceFlowId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: flowName,
+            flow: flowData,
+          }),
+        });
+
+        if (res.ok) {
+          setHasUnsavedChanges(false);
+          setShowSaveDialog(false);
+        } else {
+          console.error('Failed to save workspace flow');
+        }
+      } catch (err) {
+        console.error('Error saving workspace flow:', err);
+      }
+      return;
+    }
+
+    // Otherwise, save to local storage
+    const flow: Flow = {
+      id: currentFlowId || `flow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: flowName,
+      version: '1.0.0',
+      tags: [],
+      createdAt: currentFlowId ? (flowStorage.getFlow(currentFlowId)?.createdAt || now) : now,
+      updatedAt: now,
+      timeout: 3600,
+      ...flowData,
+    };
+
     flowStorage.saveFlow(flow);
     setCurrentFlowId(flow.id);
     setHasUnsavedChanges(false);
     setSavedFlows(flowStorage.listFlows());
     setShowSaveDialog(false);
-  }, [currentFlowId, flowName, nodes, connections]);
+  }, [currentFlowId, flowName, nodes, connections, isWorkspaceMode, workspaceId, workspaceFlowId]);
 
   // Load a flow
   const loadFlow = useCallback((flowId: string) => {
@@ -439,13 +538,42 @@ export function FlowBuilder() {
 
       if (result.status === 'failed') {
         setDeploymentError(result.error || 'Deployment failed');
+      } else if (result.status === 'completed' && isWorkspaceMode && workspaceId) {
+        // Record usage for workspace flows
+        try {
+          await authFetch(`/api/v1/workspaces/${workspaceId}/usage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              flowId: workspaceFlowId,
+              flowName: flowName,
+              type: 'compute',
+              computeSeconds: Math.round((result.completedAt ? new Date(result.completedAt).getTime() : Date.now()) - (result.startedAt ? new Date(result.startedAt).getTime() : Date.now())) / 1000 || 10,
+              costCents: 0, // Actual cost tracking would need orchestrator integration
+            }),
+          });
+        } catch (err) {
+          console.error('Failed to record usage:', err);
+        }
       }
     } catch (error) {
       setDeploymentError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsDeploying(false);
     }
-  }, [nodes, connections, currentFlowId, flowName, saveFlow, hasCredentialRefs, credentialsReady, collectCredentialRefs, resolveCredentials]);
+  }, [nodes, connections, currentFlowId, flowName, saveFlow, hasCredentialRefs, credentialsReady, collectCredentialRefs, resolveCredentials, isWorkspaceMode, workspaceId, workspaceFlowId]);
+
+  // Auto-trigger deployment when run=true and flow is loaded
+  useEffect(() => {
+    if (autoRun && workspaceFlowLoaded && !autoRunTriggered && nodes.length > 0) {
+      setAutoRunTriggered(true);
+      // Small delay to ensure UI is ready
+      const timer = setTimeout(() => {
+        handleDeploy();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [autoRun, workspaceFlowLoaded, autoRunTriggered, nodes.length, handleDeploy]);
 
   // Handle credential unlock/setup
   const handleCredentialUnlock = useCallback(async () => {
@@ -978,7 +1106,7 @@ export function FlowBuilder() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-md)' }}>
           <button
-            onClick={() => navigate('/deploy')}
+            onClick={() => isWorkspaceMode ? navigate(`/workspace/${workspaceId}`) : navigate('/deploy')}
             style={{
               background: 'none',
               border: 'none',
@@ -987,6 +1115,7 @@ export function FlowBuilder() {
               display: 'flex',
               alignItems: 'center',
             }}
+            title={isWorkspaceMode ? 'Back to workspace' : 'Back to deploy'}
           >
             <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} />
           </button>
@@ -995,25 +1124,41 @@ export function FlowBuilder() {
               <h2 className="page-title" style={{ fontSize: '1.25rem', margin: 0 }}>
                 {flowName}
               </h2>
+              {isWorkspaceMode && (
+                <span style={{
+                  fontSize: '0.6rem',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  background: 'rgba(0, 255, 255, 0.15)',
+                  color: 'var(--primary)',
+                  textTransform: 'uppercase',
+                }}>
+                  Workspace Flow
+                </span>
+              )}
               {hasUnsavedChanges && (
                 <span style={{ color: 'var(--warning)', fontSize: '0.7rem' }}>*</span>
               )}
             </div>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-              {currentFlowId ? `ID: ${currentFlowId.slice(0, 20)}...` : 'Not saved'}
+              {isWorkspaceMode ? `Editing workspace flow` : (currentFlowId ? `ID: ${currentFlowId.slice(0, 20)}...` : 'Not saved')}
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--gap-sm)' }}>
-          <CyberButton onClick={newFlow} icon={Plus} title="New flow">
-            NEW
-          </CyberButton>
-          <CyberButton onClick={() => setShowSaveDialog(true)} icon={Save} title="Save flow">
+          {!isWorkspaceMode && (
+            <CyberButton onClick={newFlow} icon={Plus} title="New flow">
+              NEW
+            </CyberButton>
+          )}
+          <CyberButton onClick={() => isWorkspaceMode ? saveFlow() : setShowSaveDialog(true)} icon={Save} title="Save flow">
             SAVE
           </CyberButton>
-          <CyberButton onClick={() => setShowLoadDialog(true)} icon={FolderOpen} title="Load flow">
-            LOAD
-          </CyberButton>
+          {!isWorkspaceMode && (
+            <CyberButton onClick={() => setShowLoadDialog(true)} icon={FolderOpen} title="Load flow">
+              LOAD
+            </CyberButton>
+          )}
           <CyberButton onClick={() => setShowRequirements(!showRequirements)}>
             {showRequirements ? 'HIDE' : 'SHOW'} REQ
           </CyberButton>

@@ -898,10 +898,7 @@ Members: ${workspace?.members.length || 0}`
                         size="sm"
                         variant="primary"
                         icon={Play}
-                        onClick={() => {
-                          // TODO: Deploy/run flow
-                          console.log('Run flow:', flow.id);
-                        }}
+                        onClick={() => navigate(`/flow-builder?workspaceId=${id}&flowId=${flow.id}&run=true`)}
                       >
                         RUN
                       </CyberButton>
