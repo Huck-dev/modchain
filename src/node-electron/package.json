@@ -36,7 +36,13 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "artifactName": "OtherThing-Node-Setup.${ext}"
+      "artifactName": "OtherThing-Node-Setup.${ext}",
+      "extraResources": [
+        {
+          "from": "ipfs-bin/win/ipfs.exe",
+          "to": "ipfs/ipfs.exe"
+        }
+      ]
     },
     "mac": {
       "target": [
@@ -61,7 +67,13 @@
         }
       ],
       "icon": "assets/icon.png",
-      "artifactName": "OtherThing-Node.${ext}"
+      "artifactName": "OtherThing-Node.${ext}",
+      "extraResources": [
+        {
+          "from": "ipfs-bin/linux/ipfs",
+          "to": "ipfs/ipfs"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,

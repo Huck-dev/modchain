@@ -178,6 +178,10 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send('limits-change', limits);
   });
 
+  nodeService.on('ipfsStatusChange', (status) => {
+    mainWindow?.webContents.send('ipfs-status', status);
+  });
+
   // IPC handlers
   ipcMain.handle('get-hardware', async () => {
     return await HardwareDetector.detect();
@@ -298,6 +302,37 @@ app.whenReady().then(async () => {
     } catch (error) {
       return { success: false, error: String(error) };
     }
+  });
+
+  // IPFS handlers
+  ipcMain.handle('ipfs-start', async () => {
+    if (!nodeService) return { success: false, error: 'Node service not initialized' };
+    try {
+      await nodeService.startIPFS();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('ipfs-stop', async () => {
+    if (!nodeService) return { success: false, error: 'Node service not initialized' };
+    try {
+      await nodeService.stopIPFS();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('ipfs-status', async () => {
+    if (!nodeService) return { running: false, hasBinary: false, stats: null };
+    return {
+      running: nodeService.isIPFSRunning(),
+      hasBinary: nodeService.hasIPFSBinary(),
+      peerId: nodeService.getIPFSPeerId(),
+      stats: await nodeService.getIPFSStats(),
+    };
   });
 
   app.on('activate', () => {

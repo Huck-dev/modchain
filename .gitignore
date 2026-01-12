@@ -6,10 +6,14 @@ node_modules/
 dist/
 build/
 target/
-*.exe
 *.dll
-*.so
 *.dylib
+
+# Electron releases (large files)
+src/node-electron/release/
+
+# Note: ipfs-bin/ contains the IPFS binaries and IS tracked (needed for builds)
+# The binaries are ~67MB (Windows) and ~87MB (Linux)
 
 # Tauri
 src/desktop/src-tauri/target/

@@ -35,6 +35,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setStoragePath: (path: string | null): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('set-storage-path', path),
 
+  // IPFS operations
+  startIPFS: (): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke('ipfs-start'),
+  stopIPFS: (): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke('ipfs-stop'),
+  getIPFSStatus: (): Promise<{ running: boolean; hasBinary: boolean; peerId: string | null; stats: any }> =>
+    ipcRenderer.invoke('ipfs-status'),
+  onIPFSStatus: (callback: (status: any) => void) => {
+    ipcRenderer.on('ipfs-status', (_, status) => callback(status));
+  },
+
   // Window controls
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window-maximize'),
