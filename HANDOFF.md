@@ -10,109 +10,75 @@
 - **SSH Key Passphrase**: `Leonidas12!`
 - **Sudo Password**: `bAttlezone12a!`
 - **Remote Script**: `/tmp/remote.sh` (handles SSH with expect)
-- **GitHub**: https://github.com/Huck-dev/rhizos-cloud (PRIVATE repo)
+- **GitHub**: https://github.com/Huck-dev/rhizos-cloud (PUBLIC repo)
 - **Systemd Services**: `nginx`, `otherthing`
 
 ---
 
-## 🚨 PRIORITY TODO: Workspace-Integrated Flow Builder
+## Recent Completions (This Session)
 
-### Goal
-Allow users to select a workspace directly from the main Flow Builder page (http://155.117.46.228/flow). When a workspace is selected:
-1. Show the workspace's available compute resources (CPU, RAM, GPU from connected nodes)
-2. Show the workspace's API keys that can be used
-3. When the flow is saved, it appears in the selected workspace's Flows tab
-4. When the flow is deployed/run, it uses the workspace's compute nodes
+### 1. Local-First Node Share Key Architecture
+- **Node app generates share key locally** (8-char alphanumeric, e.g., `AB3X7K9M`)
+- Share key persisted in `userData/node-config.json`
+- Node sends `share_key` to orchestrator during registration
+- Orchestrator accepts node's share key (no longer generates its own)
 
-### Implementation Steps
+### 2. Workspace Share Key Input
+- Added "Add Node by Share Key" card in workspace Resources tab
+- User enters 8-char share key from node app
+- API: `POST /api/v1/workspaces/:id/nodes/add-by-key`
+- Node joins workspace and appears in nodes list
 
-#### 1. Add Workspace Selector to FlowBuilder.tsx
-- Add a dropdown/selector in the toolbar to pick a workspace
-- Fetch user's workspaces via `GET /api/v1/workspaces`
-- Store selected workspace ID in state
+### 3. Resource Limit Controls in Node App
+- Added sliders for CPU cores, RAM %, Storage GB, GPU VRAM %
+- Limits saved to local config and sent to orchestrator
+- UI auto-adjusts max values based on detected hardware
+- GPU slider only shown when GPUs detected
 
-#### 2. Fetch & Display Workspace Resources
-When a workspace is selected:
-- Fetch workspace nodes via `GET /api/v1/workspaces/:id/nodes`
-- Fetch workspace API keys via `GET /api/v1/workspaces/:id/api-keys`
-- Update the "Compute Requirements" panel to show:
-  - **AVAILABLE**: Total CPU/RAM/GPU from workspace nodes
-  - **REQUIRED**: What the flow needs (already calculated)
-  - **STATUS**: Green if workspace has enough, yellow/red if not
+### 4. Resource Limits Display in Workspace UI
+- Node cards show full GPU details (model + VRAM)
+- Resource limits displayed as styled badges when set
+- Shows: CPU cores, RAM%, Storage GB, GPU%
 
-#### 3. Use Workspace API Keys
-- When workspace is selected, use workspace API keys instead of local settings
-- Update `computeRequirements.missingKeys` logic to check workspace keys
-- Show which workspace keys are available for each provider
-
-#### 4. Save Flow to Workspace
-When saving with a workspace selected:
-- Call `POST /api/v1/workspaces/:id/flows` to create flow in workspace
-- OR call `PATCH /api/v1/workspaces/:id/flows/:flowId` to update existing
-- Flow then appears in workspace's Flows tab
-
-#### 5. Deploy Using Workspace Compute
-When deploying:
-- Send workspace ID to orchestrator
-- Orchestrator routes execution to workspace's connected nodes
-- Track resource usage in workspace
-
-### Key Files to Modify
-- `src/desktop/src/pages/FlowBuilder.tsx` - Main changes
-- `src/orchestrator/src/index.ts` - May need endpoint for workspace nodes
-- `src/orchestrator/src/services/node-manager.ts` - Get nodes by workspace
-
-### UI Mockup
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ [←] Flow Name                    [Workspace: My Project ▼]      │
-│     Editing flow                 [SAVE] [DEPLOY]                │
-├─────────────────────────────────────────────────────────────────┤
-│ ┌──────────────────┐  ┌──────────────────┐                      │
-│ │ COMPUTE REQUIRED │  │ WORKSPACE AVAIL. │  ← New panel         │
-│ │ VRAM: 24 GB      │  │ VRAM: 32 GB ✓    │                      │
-│ │ RAM: 16 GB       │  │ RAM: 64 GB ✓     │                      │
-│ │ CPU: 4 cores     │  │ CPU: 16 cores ✓  │                      │
-│ └──────────────────┘  └──────────────────┘                      │
-│                                                                 │
-│ API KEYS: OpenAI ✓  Anthropic ✓  (from workspace)              │
-├─────────────────────────────────────────────────────────────────┤
-│                        [Flow Canvas]                            │
-│                                                                 │
-```
+### 5. Workspace-Integrated Flow Builder (Previous Session)
+- Workspace selector in Flow Builder header
+- Shows workspace available resources vs flow requirements
+- Uses workspace API keys for provider validation
+- Saves/deploys flows to selected workspace
+- Jobs route to workspace nodes when workspaceId specified
 
 ---
 
-## Current State (Jan 12, 2026)
+## Current Architecture
 
-### What's Working
-1. **Workspace Features**
-   - API Keys management (OpenAI, Anthropic, Google, Groq, custom)
-   - Workspace Flows (create, edit, delete)
-   - Resource Usage Tracking (tokens, compute time, costs)
-   - Task/Ticket Kanban board
-   - Console with workspace commands
-   - Member management with invite codes
+### Share Key Flow
+```
+1. Node App starts → Generates local share key (persisted)
+2. Node connects to orchestrator → Sends share_key in registration
+3. Orchestrator stores share_key → nodeId mapping
+4. User enters share key in workspace UI
+5. API looks up nodeId by share key → Adds node to workspace
+6. Node appears in workspace with capabilities + resource limits
+```
 
-2. **Node Management**
-   - Node ownership/claiming system
-   - Resource limit controls (CPU, RAM, GPU, Storage)
-   - Workspace assignment
-   - Health check with 30s timeout, 15s heartbeat
-   - Auto-cleanup of stale nodes
+### Key Files Modified This Session
+```
+src/node-electron/
+├── src/node-service.ts     # Local key generation, resource limits
+├── src/main.ts             # IPC handlers for limits
+├── src/preload.ts          # Exposed APIs
+└── src/index.html          # Resource limits UI
 
-3. **Flow Builder**
-   - Drag-and-drop module placement
-   - Connection drawing between nodes
-   - Module palette with categories
-   - Compute requirements calculation
-   - Local flow save/load
-   - Workspace flow editing (via URL params)
+src/orchestrator/
+├── src/types/index.ts      # ResourceLimits interface
+├── src/services/node-manager.ts  # Store limits from registration
+└── src/index.ts            # Return limits in nodes API
 
-4. **Electron Node App**
-   - Windows installer: `/usr/share/nginx/html/downloads/OtherThing-Node-Setup.exe`
-   - Linux AppImage: `/usr/share/nginx/html/downloads/OtherThing-Node.AppImage`
-   - GitHub Release: v0.1.2
+src/desktop/
+└── src/pages/WorkspaceDetail.tsx  # Share key input, limits display
+```
+
+---
 
 ## Key Project Structure
 ```
@@ -121,83 +87,64 @@ When deploying:
 │   ├── desktop/                 # React frontend (Vite)
 │   │   └── src/pages/
 │   │       ├── WorkspaceDetail.tsx  # Workspace view (5 tabs)
-│   │       ├── NodeControl.tsx      # Node management
-│   │       └── FlowBuilder.tsx      # Main flow builder ← MODIFY THIS
+│   │       ├── FlowBuilder.tsx      # Flow builder with workspace selector
+│   │       └── NodeControl.tsx      # Node management
 │   │
 │   ├── orchestrator/            # Backend (Express + WebSocket)
 │   │   └── src/
 │   │       ├── index.ts         # API endpoints
 │   │       └── services/
-│   │           ├── workspace-manager.ts  # Workspaces, flows, API keys, usage
-│   │           ├── node-manager.ts       # Node connections, ownership
-│   │           └── task-manager.ts       # Task/ticket management
+│   │           ├── workspace-manager.ts  # Workspaces, flows, API keys
+│   │           ├── node-manager.ts       # Node connections, share keys
+│   │           └── job-queue.ts          # Job routing by workspace
 │   │
 │   ├── node-electron/           # Desktop node app (Electron)
+│   │   ├── src/node-service.ts  # Core node logic, local config
+│   │   └── release/             # Built installers
+│   │
 │   └── shared/                  # Shared schemas (flows.ts)
 │
-└── workspaces.json              # Workspace data (on server: /opt/rhizos-cloud/)
+└── workspaces.json              # Workspace data (server: /opt/rhizos-cloud/)
 ```
+
+---
 
 ## Key Interfaces
 
-### workspace-manager.ts
+### ResourceLimits (orchestrator/types)
 ```typescript
-interface Workspace {
-  id: string;
-  name: string;
-  description: string;
-  isPrivate: boolean;
-  inviteCode: string;
-  ownerId: string;
-  members: WorkspaceMember[];
-  apiKeys: WorkspaceApiKey[];
-  flows: WorkspaceFlow[];
-  resourceUsage: WorkspaceResourceUsage;
-  createdAt: string;
-}
-
-interface WorkspaceApiKey {
-  id: string;
-  provider: 'openai' | 'anthropic' | 'google' | 'groq' | 'custom';
-  name: string;
-  key: string;  // Full key stored, masked when returned to client
-  addedBy: string;
-  addedAt: string;
-}
-
-interface WorkspaceFlow {
-  id: string;
-  name: string;
-  description: string;
-  flow: any; // { nodes: [...], connections: [...] }
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
+interface ResourceLimits {
+  cpuCores?: number;
+  ramPercent?: number;
+  storageGb?: number;
+  gpuVramPercent?: number[];
 }
 ```
 
-### node-manager.ts
+### ConnectedNode (orchestrator/types)
 ```typescript
 interface ConnectedNode {
   id: string;
-  hostname: string;
-  ownerId: string | null;
-  workspaces: string[];  // Workspace IDs this node is assigned to
-  status: 'online' | 'offline' | 'busy';
-  capabilities: {
-    cpuCores: number;
-    memoryMb: number;
-    gpuCount: number;
-    storageMb: number;
-  };
-  limits: {
-    maxCpuPercent: number;
-    maxMemoryMb: number;
-    maxGpuPercent: number;
-    maxStorageMb: number;
-  };
+  capabilities: NodeCapabilities;
+  ws: WebSocket;
+  available: boolean;
+  current_jobs: number;
+  last_heartbeat: Date;
+  reputation: number;
+  resourceLimits?: ResourceLimits;  // NEW
 }
 ```
+
+### NodeConfig (node-electron/node-service.ts)
+```typescript
+interface NodeConfig {
+  shareKey: string;      // Locally generated, persistent
+  nodeId: string;        // Locally generated, persistent
+  resourceLimits: ResourceLimits;
+}
+```
+
+---
 
 ## API Endpoints
 
@@ -206,39 +153,57 @@ interface ConnectedNode {
 |----------|--------|---------|
 | `/api/v1/workspaces` | GET | List user's workspaces |
 | `/api/v1/workspaces/:id` | GET | Get workspace details |
-| `/api/v1/workspaces/:id/nodes` | GET | Get nodes assigned to workspace |
+| `/api/v1/workspaces/:id/nodes` | GET | Get nodes (includes resourceLimits) |
+| `/api/v1/workspaces/:id/nodes/add-by-key` | POST | Add node by share key |
 | `/api/v1/workspaces/:id/api-keys` | GET | List API keys (masked) |
-| `/api/v1/workspaces/:id/flows` | GET | List flows |
-| `/api/v1/workspaces/:id/flows` | POST | Create flow |
-| `/api/v1/workspaces/:id/flows/:flowId` | PATCH | Update flow |
+| `/api/v1/workspaces/:id/flows` | GET/POST | List/create flows |
 
-### Nodes
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/my-nodes` | GET | Get user's visible nodes |
-| `/api/v1/nodes/:nodeId/claim` | POST | Claim unowned node |
-| `/api/v1/nodes/:nodeId/workspaces` | POST | Assign to workspaces |
+### Node WebSocket Messages
+```typescript
+// Node → Orchestrator (registration)
+{
+  type: 'register',
+  share_key: 'AB3X7K9M',  // Node's local share key
+  capabilities: { ... },
+  workspace_ids: [],
+  resource_limits: { cpuCores: 8, ramPercent: 50, ... }
+}
+
+// Orchestrator → Node (confirmation)
+{
+  type: 'registered',
+  node_id: 'node-abc123',
+  share_key: 'AB3X7K9M'
+}
+```
+
+---
 
 ## Deploy Commands
 ```bash
 # 1. Commit and push
 git add -A && git commit -m "message" && git push
 
-# 2. Make repo public (required for server pull)
-gh repo edit Huck-dev/rhizos-cloud --visibility public
-
-# 3. Pull on server
+# 2. Pull on server (repo is now public)
 /tmp/remote.sh "cd /opt/rhizos-cloud && echo 'bAttlezone12a!' | sudo -S git pull"
 
-# 4. Make repo private again
-gh repo edit Huck-dev/rhizos-cloud --visibility private
-
-# 5. Rebuild frontend
+# 3. Rebuild frontend
 /tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S rm -rf dist && echo 'bAttlezone12a!' | sudo -S pnpm build"
 
-# 6. Deploy and restart
+# 4. Deploy and restart
 /tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/assets /usr/share/nginx/html/index.html && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/ && echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
+
+# Build Windows installer
+powershell.exe -ExecutionPolicy Bypass -Command 'cd D:\modchain\src\node-electron; $env:Path = "C:\Program Files\nodejs;" + $env:Path; npm run dist:win'
+
+# Upload to release
+gh release upload v0.1.2 "/mnt/d/modchain/src/node-electron/release/OtherThing-Node-Setup.exe" --clobber
+
+# Update installer on server
+/tmp/remote.sh "cd /usr/share/nginx/html/downloads && echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node-Setup.exe 'https://github.com/Huck-dev/rhizos-cloud/releases/download/v0.1.2/OtherThing-Node-Setup.exe'"
 ```
+
+---
 
 ## Useful Server Commands
 ```bash
@@ -252,10 +217,17 @@ gh repo edit Huck-dev/rhizos-cloud --visibility private
 /tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
 ```
 
-## Other TODOs
-- [ ] HTTPS (Let's Encrypt) for better security
-- [ ] Full token/cost tracking requires orchestrator-side implementation
-- [ ] Orchestrator needs to actually route jobs to workspace nodes
+---
+
+## Remaining TODOs
+- [ ] HTTPS (Let's Encrypt) for production security
+- [ ] Full token/cost tracking in orchestrator
+- [ ] Job execution and result streaming
+- [ ] Node reputation system based on job completion
+- [ ] Multiple GPUs resource limit support (per-GPU sliders)
+- [ ] Remote configuration opt-in for nodes
+
+---
 
 ## User's Hardware
 - CPU: Ryzen Threadripper PRO 5995WX (64 cores, 128 threads)
@@ -266,5 +238,5 @@ gh repo edit Huck-dev/rhizos-cloud --visibility private
 ## Git Info
 - Remote: https://github.com/Huck-dev/rhizos-cloud.git
 - Branch: main
-- Latest: "Add workspace flow editor integration"
 - Release: v0.1.2 (Windows + Linux installers)
+- Latest commit: "feat: show node resource limits in workspace UI"
