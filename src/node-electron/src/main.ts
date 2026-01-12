@@ -173,6 +173,10 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send('node-log', log);
   });
 
+  nodeService.on('limitsChange', (limits) => {
+    mainWindow?.webContents.send('limits-change', limits);
+  });
+
   // IPC handlers
   ipcMain.handle('get-hardware', async () => {
     return await HardwareDetector.detect();
@@ -219,6 +223,24 @@ app.whenReady().then(async () => {
     } catch {
       return { workspaces: [] };
     }
+  });
+
+  ipcMain.handle('get-resource-limits', () => {
+    return nodeService?.getResourceLimits() ?? {};
+  });
+
+  ipcMain.handle('set-resource-limits', (_, limits) => {
+    if (!nodeService) return { success: false, error: 'Node service not initialized' };
+    try {
+      nodeService.setResourceLimits(limits);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('get-detected-hardware', async () => {
+    return nodeService?.getHardware() ?? await HardwareDetector.detect();
   });
 
   app.on('activate', () => {

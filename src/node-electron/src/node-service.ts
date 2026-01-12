@@ -398,6 +398,17 @@ export class NodeService extends EventEmitter {
     return this.resourceLimits;
   }
 
+  setResourceLimits(limits: ResourceLimits): void {
+    this.resourceLimits = limits;
+    this.saveConfig();
+    this.log(`Resource limits updated: CPU=${limits.cpuCores || 'all'} cores, RAM=${limits.ramPercent || 100}%, Storage=${limits.storageGb || 'all'}GB`, 'success');
+    this.emit('limitsChange', this.resourceLimits);
+  }
+
+  getHardware(): HardwareInfo | null {
+    return this.hardware;
+  }
+
   getWorkspaceIds(): string[] {
     return this.workspaceIds;
   }

@@ -165,6 +165,75 @@
       border-color: rgba(0,255,65,0.4);
       color: #00ff41;
     }
+
+    /* Resource Limits Styles */
+    .limits-section { margin-top: 8px; }
+    .limit-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .limit-row:last-child { border-bottom: none; }
+    .limit-label {
+      font-size: 0.8rem;
+      color: #a0a0b0;
+      min-width: 80px;
+    }
+    .limit-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      background: #1a1a25;
+      outline: none;
+    }
+    .limit-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00d4ff, #00a0c0);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0,212,255,0.4);
+    }
+    .limit-slider::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 12px rgba(0,212,255,0.6);
+    }
+    .limit-value {
+      font-family: 'Consolas', monospace;
+      font-size: 0.85rem;
+      color: #00d4ff;
+      min-width: 70px;
+      text-align: right;
+    }
+    .limit-max {
+      font-size: 0.7rem;
+      color: #606070;
+    }
+    .btn-save-limits {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #00d4ff, #0088aa);
+      border: none;
+      border-radius: 6px;
+      color: #000;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+      width: 100%;
+      transition: all 0.2s;
+    }
+    .btn-save-limits:hover {
+      box-shadow: 0 0 15px rgba(0,212,255,0.4);
+    }
+    .btn-save-limits:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .limits-saved {
+      background: linear-gradient(135deg, #00ff41, #00aa2a) !important;
+    }
   </style>
 </head>
 <body>
@@ -185,6 +254,33 @@
     <div class="card-title">Control</div>
     <button id="start-btn" class="btn btn-start" disabled>Start Node</button>
     <button id="stop-btn" class="btn btn-stop" style="display:none;">Stop Node</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Resource Limits</div>
+    <div class="limits-section" id="limits-section">
+      <div class="limit-row">
+        <span class="limit-label">CPU Cores</span>
+        <input type="range" class="limit-slider" id="cpu-slider" min="1" max="16" value="16">
+        <span class="limit-value"><span id="cpu-value">All</span> <span class="limit-max">/ <span id="cpu-max">16</span></span></span>
+      </div>
+      <div class="limit-row">
+        <span class="limit-label">RAM</span>
+        <input type="range" class="limit-slider" id="ram-slider" min="10" max="100" value="100" step="5">
+        <span class="limit-value"><span id="ram-value">100</span>%</span>
+      </div>
+      <div class="limit-row">
+        <span class="limit-label">Storage</span>
+        <input type="range" class="limit-slider" id="storage-slider" min="10" max="500" value="500" step="10">
+        <span class="limit-value"><span id="storage-value">All</span> <span class="limit-max">/ <span id="storage-max">500</span> GB</span></span>
+      </div>
+      <div class="limit-row" id="gpu-row" style="display:none;">
+        <span class="limit-label">GPU VRAM</span>
+        <input type="range" class="limit-slider" id="gpu-slider" min="10" max="100" value="100" step="5">
+        <span class="limit-value"><span id="gpu-value">100</span>%</span>
+      </div>
+      <button id="save-limits-btn" class="btn-save-limits">Save Limits</button>
+    </div>
   </div>
 
   <div id="share-key-box" class="card share-key-box">
@@ -324,6 +420,133 @@
 
       window.electronAPI.onNodeLog(entry => {
         addLog(entry.message, entry.type);
+      });
+
+      // Resource Limits
+      const cpuSlider = document.getElementById('cpu-slider');
+      const cpuValue = document.getElementById('cpu-value');
+      const cpuMax = document.getElementById('cpu-max');
+      const ramSlider = document.getElementById('ram-slider');
+      const ramValue = document.getElementById('ram-value');
+      const storageSlider = document.getElementById('storage-slider');
+      const storageValue = document.getElementById('storage-value');
+      const storageMax = document.getElementById('storage-max');
+      const gpuRow = document.getElementById('gpu-row');
+      const gpuSlider = document.getElementById('gpu-slider');
+      const gpuValue = document.getElementById('gpu-value');
+      const saveLimitsBtn = document.getElementById('save-limits-btn');
+
+      let detectedHardware = null;
+
+      // Initialize sliders based on hardware
+      window.electronAPI.getHardware().then(hw => {
+        detectedHardware = hw;
+
+        // Set CPU slider max
+        cpuSlider.max = hw.cpu.cores;
+        cpuSlider.value = hw.cpu.cores;
+        cpuMax.textContent = hw.cpu.cores;
+
+        // Set storage slider max
+        const maxStorage = Math.round(hw.storage.available_gb);
+        storageSlider.max = maxStorage;
+        storageSlider.value = maxStorage;
+        storageMax.textContent = maxStorage;
+
+        // Show GPU row if GPUs detected
+        if (hw.gpus && hw.gpus.length > 0) {
+          gpuRow.style.display = 'flex';
+        }
+
+        // Load saved limits
+        return window.electronAPI.getResourceLimits();
+      }).then(limits => {
+        if (limits) {
+          if (limits.cpuCores) {
+            cpuSlider.value = limits.cpuCores;
+            cpuValue.textContent = limits.cpuCores;
+          }
+          if (limits.ramPercent) {
+            ramSlider.value = limits.ramPercent;
+            ramValue.textContent = limits.ramPercent;
+          }
+          if (limits.storageGb) {
+            storageSlider.value = limits.storageGb;
+            storageValue.textContent = limits.storageGb;
+          }
+          if (limits.gpuVramPercent && limits.gpuVramPercent[0]) {
+            gpuSlider.value = limits.gpuVramPercent[0];
+            gpuValue.textContent = limits.gpuVramPercent[0];
+          }
+        }
+        updateSliderDisplays();
+      });
+
+      function updateSliderDisplays() {
+        const cpuVal = parseInt(cpuSlider.value);
+        cpuValue.textContent = cpuVal >= parseInt(cpuSlider.max) ? 'All' : cpuVal;
+
+        ramValue.textContent = ramSlider.value;
+
+        const storageVal = parseInt(storageSlider.value);
+        storageValue.textContent = storageVal >= parseInt(storageSlider.max) ? 'All' : storageVal;
+
+        gpuValue.textContent = gpuSlider.value;
+      }
+
+      cpuSlider.addEventListener('input', updateSliderDisplays);
+      ramSlider.addEventListener('input', updateSliderDisplays);
+      storageSlider.addEventListener('input', updateSliderDisplays);
+      gpuSlider.addEventListener('input', updateSliderDisplays);
+
+      saveLimitsBtn.addEventListener('click', async () => {
+        saveLimitsBtn.disabled = true;
+        saveLimitsBtn.textContent = 'Saving...';
+
+        const limits = {
+          cpuCores: parseInt(cpuSlider.value) >= parseInt(cpuSlider.max) ? undefined : parseInt(cpuSlider.value),
+          ramPercent: parseInt(ramSlider.value) >= 100 ? undefined : parseInt(ramSlider.value),
+          storageGb: parseInt(storageSlider.value) >= parseInt(storageSlider.max) ? undefined : parseInt(storageSlider.value),
+          gpuVramPercent: parseInt(gpuSlider.value) >= 100 ? undefined : [parseInt(gpuSlider.value)]
+        };
+
+        try {
+          const result = await window.electronAPI.setResourceLimits(limits);
+          if (result.success) {
+            saveLimitsBtn.textContent = 'Saved!';
+            saveLimitsBtn.classList.add('limits-saved');
+            setTimeout(() => {
+              saveLimitsBtn.textContent = 'Save Limits';
+              saveLimitsBtn.classList.remove('limits-saved');
+              saveLimitsBtn.disabled = false;
+            }, 1500);
+          } else {
+            addLog('Failed to save limits: ' + result.error, 'error');
+            saveLimitsBtn.textContent = 'Save Limits';
+            saveLimitsBtn.disabled = false;
+          }
+        } catch (err) {
+          addLog('Error saving limits: ' + err, 'error');
+          saveLimitsBtn.textContent = 'Save Limits';
+          saveLimitsBtn.disabled = false;
+        }
+      });
+
+      // Listen for limits changes from backend
+      window.electronAPI.onLimitsChange(limits => {
+        if (limits.cpuCores) {
+          cpuSlider.value = limits.cpuCores;
+        }
+        if (limits.ramPercent) {
+          ramSlider.value = limits.ramPercent;
+        }
+        if (limits.storageGb) {
+          storageSlider.value = limits.storageGb;
+        }
+        if (limits.gpuVramPercent && limits.gpuVramPercent[0]) {
+          gpuSlider.value = limits.gpuVramPercent[0];
+        }
+        updateSliderDisplays();
       });
     }
   </script>
