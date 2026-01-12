@@ -13,6 +13,76 @@
 - **GitHub**: https://github.com/Huck-dev/rhizos-cloud (PRIVATE repo)
 - **Systemd Services**: `nginx`, `otherthing`
 
+---
+
+## 🚨 PRIORITY TODO: Workspace-Integrated Flow Builder
+
+### Goal
+Allow users to select a workspace directly from the main Flow Builder page (http://155.117.46.228/flow). When a workspace is selected:
+1. Show the workspace's available compute resources (CPU, RAM, GPU from connected nodes)
+2. Show the workspace's API keys that can be used
+3. When the flow is saved, it appears in the selected workspace's Flows tab
+4. When the flow is deployed/run, it uses the workspace's compute nodes
+
+### Implementation Steps
+
+#### 1. Add Workspace Selector to FlowBuilder.tsx
+- Add a dropdown/selector in the toolbar to pick a workspace
+- Fetch user's workspaces via `GET /api/v1/workspaces`
+- Store selected workspace ID in state
+
+#### 2. Fetch & Display Workspace Resources
+When a workspace is selected:
+- Fetch workspace nodes via `GET /api/v1/workspaces/:id/nodes`
+- Fetch workspace API keys via `GET /api/v1/workspaces/:id/api-keys`
+- Update the "Compute Requirements" panel to show:
+  - **AVAILABLE**: Total CPU/RAM/GPU from workspace nodes
+  - **REQUIRED**: What the flow needs (already calculated)
+  - **STATUS**: Green if workspace has enough, yellow/red if not
+
+#### 3. Use Workspace API Keys
+- When workspace is selected, use workspace API keys instead of local settings
+- Update `computeRequirements.missingKeys` logic to check workspace keys
+- Show which workspace keys are available for each provider
+
+#### 4. Save Flow to Workspace
+When saving with a workspace selected:
+- Call `POST /api/v1/workspaces/:id/flows` to create flow in workspace
+- OR call `PATCH /api/v1/workspaces/:id/flows/:flowId` to update existing
+- Flow then appears in workspace's Flows tab
+
+#### 5. Deploy Using Workspace Compute
+When deploying:
+- Send workspace ID to orchestrator
+- Orchestrator routes execution to workspace's connected nodes
+- Track resource usage in workspace
+
+### Key Files to Modify
+- `src/desktop/src/pages/FlowBuilder.tsx` - Main changes
+- `src/orchestrator/src/index.ts` - May need endpoint for workspace nodes
+- `src/orchestrator/src/services/node-manager.ts` - Get nodes by workspace
+
+### UI Mockup
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ [←] Flow Name                    [Workspace: My Project ▼]      │
+│     Editing flow                 [SAVE] [DEPLOY]                │
+├─────────────────────────────────────────────────────────────────┤
+│ ┌──────────────────┐  ┌──────────────────┐                      │
+│ │ COMPUTE REQUIRED │  │ WORKSPACE AVAIL. │  ← New panel         │
+│ │ VRAM: 24 GB      │  │ VRAM: 32 GB ✓    │                      │
+│ │ RAM: 16 GB       │  │ RAM: 64 GB ✓     │                      │
+│ │ CPU: 4 cores     │  │ CPU: 16 cores ✓  │                      │
+│ └──────────────────┘  └──────────────────┘                      │
+│                                                                 │
+│ API KEYS: OpenAI ✓  Anthropic ✓  (from workspace)              │
+├─────────────────────────────────────────────────────────────────┤
+│                        [Flow Canvas]                            │
+│                                                                 │
+```
+
+---
+
 ## Current State (Jan 12, 2026)
 
 ### What's Working
@@ -31,7 +101,15 @@
    - Health check with 30s timeout, 15s heartbeat
    - Auto-cleanup of stale nodes
 
-3. **Electron Node App**
+3. **Flow Builder**
+   - Drag-and-drop module placement
+   - Connection drawing between nodes
+   - Module palette with categories
+   - Compute requirements calculation
+   - Local flow save/load
+   - Workspace flow editing (via URL params)
+
+4. **Electron Node App**
    - Windows installer: `/usr/share/nginx/html/downloads/OtherThing-Node-Setup.exe`
    - Linux AppImage: `/usr/share/nginx/html/downloads/OtherThing-Node.AppImage`
    - GitHub Release: v0.1.2
@@ -44,7 +122,7 @@
 │   │   └── src/pages/
 │   │       ├── WorkspaceDetail.tsx  # Workspace view (5 tabs)
 │   │       ├── NodeControl.tsx      # Node management
-│   │       └── FlowBuilder.tsx      # Main flow builder
+│   │       └── FlowBuilder.tsx      # Main flow builder ← MODIFY THIS
 │   │
 │   ├── orchestrator/            # Backend (Express + WebSocket)
 │   │   └── src/
@@ -60,15 +138,9 @@
 └── workspaces.json              # Workspace data (on server: /opt/rhizos-cloud/)
 ```
 
-## WorkspaceDetail.tsx Tabs
-1. **Tasks** - Kanban board (todo, in_progress, done)
-2. **Flows** - Create/manage workspace flows with EDIT/RUN buttons
-3. **Console** - Command interface (help, nodes, members, stats, tasks)
-4. **Resources** - Connected nodes, usage summary, members list
-5. **API Keys** - Add/remove provider API keys
+## Key Interfaces
 
-## Key Interfaces (workspace-manager.ts)
-
+### workspace-manager.ts
 ```typescript
 interface Workspace {
   id: string;
@@ -88,7 +160,7 @@ interface WorkspaceApiKey {
   id: string;
   provider: 'openai' | 'anthropic' | 'google' | 'groq' | 'custom';
   name: string;
-  key: string;
+  key: string;  // Full key stored, masked when returned to client
   addedBy: string;
   addedAt: string;
 }
@@ -97,50 +169,48 @@ interface WorkspaceFlow {
   id: string;
   name: string;
   description: string;
-  flow: any; // nodes, connections
+  flow: any; // { nodes: [...], connections: [...] }
   createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
+```
 
-interface ResourceUsageEntry {
+### node-manager.ts
+```typescript
+interface ConnectedNode {
   id: string;
-  flowId?: string;
-  flowName?: string;
-  type: 'api_call' | 'compute' | 'storage';
-  provider?: string;
-  tokensUsed?: number;
-  computeSeconds?: number;
-  costCents: number;
-  userId: string;
-  timestamp: string;
+  hostname: string;
+  ownerId: string | null;
+  workspaces: string[];  // Workspace IDs this node is assigned to
+  status: 'online' | 'offline' | 'busy';
+  capabilities: {
+    cpuCores: number;
+    memoryMb: number;
+    gpuCount: number;
+    storageMb: number;
+  };
+  limits: {
+    maxCpuPercent: number;
+    maxMemoryMb: number;
+    maxGpuPercent: number;
+    maxStorageMb: number;
+  };
 }
 ```
 
 ## API Endpoints
 
-### Workspace API Keys
+### Workspaces
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/v1/workspaces/:id/api-keys` | GET | List keys (masked) |
-| `/api/v1/workspaces/:id/api-keys` | POST | Add key |
-| `/api/v1/workspaces/:id/api-keys/:keyId` | DELETE | Remove key |
-
-### Workspace Flows
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
+| `/api/v1/workspaces` | GET | List user's workspaces |
+| `/api/v1/workspaces/:id` | GET | Get workspace details |
+| `/api/v1/workspaces/:id/nodes` | GET | Get nodes assigned to workspace |
+| `/api/v1/workspaces/:id/api-keys` | GET | List API keys (masked) |
 | `/api/v1/workspaces/:id/flows` | GET | List flows |
 | `/api/v1/workspaces/:id/flows` | POST | Create flow |
-| `/api/v1/workspaces/:id/flows/:flowId` | GET | Get flow |
 | `/api/v1/workspaces/:id/flows/:flowId` | PATCH | Update flow |
-| `/api/v1/workspaces/:id/flows/:flowId` | DELETE | Delete flow |
-
-### Resource Usage
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/workspaces/:id/usage` | GET | Get raw usage |
-| `/api/v1/workspaces/:id/usage/summary` | GET | Get aggregated summary |
-| `/api/v1/workspaces/:id/usage` | POST | Record usage entry |
 
 ### Nodes
 | Endpoint | Method | Purpose |
@@ -148,7 +218,6 @@ interface ResourceUsageEntry {
 | `/api/v1/my-nodes` | GET | Get user's visible nodes |
 | `/api/v1/nodes/:nodeId/claim` | POST | Claim unowned node |
 | `/api/v1/nodes/:nodeId/workspaces` | POST | Assign to workspaces |
-| `/api/v1/nodes/:nodeId/limits` | POST | Set resource limits |
 
 ## Deploy Commands
 ```bash
@@ -181,38 +250,12 @@ gh repo edit Huck-dev/rhizos-cloud --visibility private
 
 # Restart services
 /tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
-
-# Check built files
-/tmp/remote.sh "ls -la /usr/share/nginx/html/"
 ```
 
-## Build Electron Installer
-```bash
-# Windows (from WSL)
-cd /mnt/d/modchain/src/node-electron
-pnpm build && cp src/index.html dist/
-powershell.exe -ExecutionPolicy Bypass -Command "$env:Path = 'C:\\Program Files\\nodejs;' + $env:Path; cd D:\\modchain\\src\\node-electron; npm run dist:win"
-
-# Linux
-pnpm dist:linux
-```
-
-## TODOs / Known Issues
-1. ~~Flow "EDIT" button links to FlowBuilder but workspace flow loading not implemented~~ ✅ DONE
-2. ~~Flow "RUN" button is placeholder (console.log)~~ ✅ DONE
-3. ~~Resource tracking needs to be called during actual flow execution~~ ✅ Basic tracking done
-4. Consider HTTPS (Let's Encrypt) for better security
-5. Full token/cost tracking requires orchestrator-side implementation
-
-## Recent Changes (Jan 12, 2026)
-- **Workspace Flow Editor Integration**: FlowBuilder now reads `workspaceId` and `flowId` from URL params
-  - EDIT button loads flow into full drag-and-drop editor
-  - Changes save back to workspace API via PATCH
-  - "Workspace Flow" badge shown in UI
-  - Back button returns to workspace
-- **Flow RUN Button**: Click RUN to auto-navigate to FlowBuilder with `run=true` param
-  - Auto-triggers deployment after flow loads
-  - Records basic compute usage to workspace on completion
+## Other TODOs
+- [ ] HTTPS (Let's Encrypt) for better security
+- [ ] Full token/cost tracking requires orchestrator-side implementation
+- [ ] Orchestrator needs to actually route jobs to workspace nodes
 
 ## User's Hardware
 - CPU: Ryzen Threadripper PRO 5995WX (64 cores, 128 threads)

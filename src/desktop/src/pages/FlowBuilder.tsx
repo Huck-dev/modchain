@@ -136,6 +136,26 @@ export function FlowBuilder() {
   const [workspaceFlowLoaded, setWorkspaceFlowLoaded] = useState(false);
   const [autoRunTriggered, setAutoRunTriggered] = useState(false);
 
+  // Workspace resources (available compute from workspace nodes and API keys)
+  interface WorkspaceResources {
+    nodes: Array<{
+      id: string;
+      hostname: string;
+      status: 'online' | 'offline' | 'busy';
+      capabilities: { cpuCores: number; memoryMb: number; gpuCount: number; gpuVram?: number };
+    }>;
+    apiKeys: Array<{
+      id: string;
+      provider: string;
+      name: string;
+    }>;
+    totalCpu: number;
+    totalRam: number;
+    totalGpu: number;
+    totalVram: number;
+  }
+  const [workspaceResources, setWorkspaceResources] = useState<WorkspaceResources | null>(null);
+
   // Credential management
   const { isUnlocked, resolveCredentials, unlock, initialize, isInitialized } = useCredentials();
   const { needsSetup, needsUnlock, isReady: credentialsReady } = useCredentialStoreStatus();
