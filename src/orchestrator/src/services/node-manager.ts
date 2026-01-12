@@ -124,19 +124,27 @@ export class NodeManager {
     // Check if this is a returning node with auth token
     if (message.auth_token && this.authTokens.has(message.auth_token)) {
       nodeId = this.authTokens.get(message.auth_token)!;
-      shareKey = this.nodeShareKeysByNode.get(nodeId) || this.generateShareKey();
+      // Use node's provided share key, or existing, or generate new
+      shareKey = (message as any).share_key || this.nodeShareKeysByNode.get(nodeId) || this.generateShareKey();
       isReconnect = true;
       console.log(`[NodeManager] Node ${nodeId} reconnected with auth token`);
     } else {
-      // New registration
+      // New registration - use node's provided ID and share key, or generate them
       nodeId = message.capabilities.node_id || uuidv4();
-      shareKey = this.generateShareKey();
+      // Accept share_key from node if provided (local-first architecture)
+      shareKey = (message as any).share_key || this.generateShareKey();
       console.log(`[NodeManager] New node registered: ${nodeId}`);
     }
 
+    // Clean up any old share key mappings for this node
+    const oldShareKey = this.nodeShareKeysByNode.get(nodeId);
+    if (oldShareKey && oldShareKey !== shareKey) {
+      this.nodeShareKeys.delete(oldShareKey);
+    }
+
     // Store share key mappings
-    this.nodeShareKeys.set(shareKey, nodeId);
-    this.nodeShareKeysByNode.set(nodeId, shareKey);
+    this.nodeShareKeys.set(shareKey.toUpperCase(), nodeId);
+    this.nodeShareKeysByNode.set(nodeId, shareKey.toUpperCase());
 
     // Store the connected node
     const node: ConnectedNode = {

@@ -140,6 +140,12 @@ export function WorkspaceDetail() {
   });
   const [flowError, setFlowError] = useState<string | null>(null);
 
+  // Node share key state
+  const [nodeShareKey, setNodeShareKey] = useState('');
+  const [nodeShareKeyError, setNodeShareKeyError] = useState<string | null>(null);
+  const [nodeShareKeySuccess, setNodeShareKeySuccess] = useState<string | null>(null);
+  const [addingNode, setAddingNode] = useState(false);
+
   // Usage state
   interface UsageSummary {
     totalCostCents: number;
@@ -409,6 +415,40 @@ export function WorkspaceDetail() {
       }
     } catch {
       // Failed to delete
+    }
+  };
+
+  // Add node by share key
+  const addNodeByShareKey = async () => {
+    if (!nodeShareKey.trim() || !id) return;
+
+    setNodeShareKeyError(null);
+    setNodeShareKeySuccess(null);
+    setAddingNode(true);
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/nodes/add-by-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shareKey: nodeShareKey.toUpperCase().trim() }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNodeShareKeySuccess(`Node ${data.nodeId} added to workspace!`);
+        setNodeShareKey('');
+        // Reload nodes to show the new one
+        loadNodes();
+        // Clear success message after 3 seconds
+        setTimeout(() => setNodeShareKeySuccess(null), 3000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setNodeShareKeyError(data.error || 'Failed to add node. Check that the share key is correct and the node is online.');
+      }
+    } catch (err) {
+      setNodeShareKeyError('Network error - could not reach server');
+    } finally {
+      setAddingNode(false);
     }
   };
 
@@ -994,6 +1034,76 @@ Members: ${workspace?.members.length || 0}`
             </CyberButton>
           </div>
 
+          {/* Add Node by Share Key */}
+          <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)' }}>
+            <div className="cyber-card-header">
+              <span className="cyber-card-title">ADD NODE BY SHARE KEY</span>
+            </div>
+            <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 'var(--gap-md)' }}>
+                Enter the share key displayed in the OtherThing Node app to add a node to this workspace.
+              </p>
+              {nodeShareKeyError && (
+                <div style={{
+                  marginBottom: 'var(--gap-md)',
+                  padding: 'var(--gap-sm) var(--gap-md)',
+                  background: 'rgba(255, 100, 100, 0.1)',
+                  border: '1px solid var(--error)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--error)',
+                  fontSize: '0.85rem',
+                }}>
+                  {nodeShareKeyError}
+                </div>
+              )}
+              {nodeShareKeySuccess && (
+                <div style={{
+                  marginBottom: 'var(--gap-md)',
+                  padding: 'var(--gap-sm) var(--gap-md)',
+                  background: 'rgba(100, 255, 100, 0.1)',
+                  border: '1px solid var(--success)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--success)',
+                  fontSize: '0.85rem',
+                }}>
+                  {nodeShareKeySuccess}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 'var(--gap-sm)', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={nodeShareKey}
+                  onChange={(e) => setNodeShareKey(e.target.value.toUpperCase())}
+                  placeholder="e.g., AB3X7K9M"
+                  maxLength={8}
+                  className="settings-input"
+                  style={{
+                    flex: 1,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '1.1rem',
+                    letterSpacing: '2px',
+                    textTransform: 'uppercase',
+                    textAlign: 'center',
+                    maxWidth: '200px',
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && nodeShareKey.length === 8) {
+                      addNodeByShareKey();
+                    }
+                  }}
+                />
+                <CyberButton
+                  variant="primary"
+                  icon={Plus}
+                  onClick={addNodeByShareKey}
+                  disabled={nodeShareKey.length !== 8 || addingNode}
+                >
+                  {addingNode ? 'ADDING...' : 'ADD NODE'}
+                </CyberButton>
+              </div>
+            </div>
+          </div>
+
           {nodes.length === 0 ? (
             <div className="cyber-card">
               <div className="cyber-card-body" style={{ textAlign: 'center', padding: 'var(--gap-xl)' }}>
@@ -1002,7 +1112,7 @@ Members: ${workspace?.members.length || 0}`
                   No nodes connected to this workspace yet.
                 </p>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  Run: <code style={{ color: 'var(--primary)' }}>./rhizos-node start -o http://SERVER -w {id}</code>
+                  Download the OtherThing Node app and use the share key to connect.
                 </p>
               </div>
             </div>

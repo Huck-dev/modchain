@@ -3,8 +3,23 @@ import WebSocket from 'ws';
 import { HardwareDetector, HardwareInfo } from './hardware';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as fs from 'fs';
+import * as path from 'path';
+import { app } from 'electron';
 
 const execAsync = promisify(exec);
+
+// Generate a share key (8 alphanumeric chars, easy to read)
+function generateShareKey(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No I, O, 1, 0 for clarity
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+interface NodeConfig {
+  shareKey: string;
+  nodeId: string;
+  resourceLimits: ResourceLimits;
+}
 
 interface Job {
   id: string;
@@ -30,8 +45,8 @@ export class NodeService extends EventEmitter {
   private ws: WebSocket | null = null;
   private running = false;
   private connected = false;
-  private nodeId: string | null = null;
-  private shareKey: string | null = null; // Share key for adding this node to workspaces
+  private nodeId: string;
+  private shareKey: string; // Share key for adding this node to workspaces (locally generated)
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private orchestratorUrl: string;
@@ -39,10 +54,57 @@ export class NodeService extends EventEmitter {
   private hardware: HardwareInfo | null = null;
   private currentJobs: Map<string, Job> = new Map();
   private resourceLimits: ResourceLimits = {};
+  private configPath: string;
 
   constructor(defaultOrchestratorUrl: string) {
     super();
     this.orchestratorUrl = defaultOrchestratorUrl;
+
+    // Load or create config with persistent share key
+    this.configPath = path.join(app.getPath('userData'), 'node-config.json');
+    const config = this.loadOrCreateConfig();
+    this.shareKey = config.shareKey;
+    this.nodeId = config.nodeId;
+    this.resourceLimits = config.resourceLimits;
+  }
+
+  private loadOrCreateConfig(): NodeConfig {
+    try {
+      if (fs.existsSync(this.configPath)) {
+        const data = fs.readFileSync(this.configPath, 'utf-8');
+        const config = JSON.parse(data) as Partial<NodeConfig>;
+        // Ensure all fields exist
+        return {
+          shareKey: config.shareKey || generateShareKey(),
+          nodeId: config.nodeId || `node-${Math.random().toString(36).slice(2, 10)}`,
+          resourceLimits: config.resourceLimits || {},
+        };
+      }
+    } catch (err) {
+      console.error('Failed to load config:', err);
+    }
+
+    // Create new config
+    const config: NodeConfig = {
+      shareKey: generateShareKey(),
+      nodeId: `node-${Math.random().toString(36).slice(2, 10)}`,
+      resourceLimits: {},
+    };
+    this.saveConfig(config);
+    return config;
+  }
+
+  private saveConfig(config?: NodeConfig) {
+    try {
+      const toSave: NodeConfig = config || {
+        shareKey: this.shareKey,
+        nodeId: this.nodeId,
+        resourceLimits: this.resourceLimits,
+      };
+      fs.writeFileSync(this.configPath, JSON.stringify(toSave, null, 2));
+    } catch (err) {
+      console.error('Failed to save config:', err);
+    }
   }
 
   private log(message: string, type: LogEntry['type'] = 'info') {
@@ -88,12 +150,12 @@ export class NodeService extends EventEmitter {
         this.connected = true;
         this.emit('statusChange');
 
-        // Send registration
-        const nodeId = `node-${Math.random().toString(36).slice(2, 10)}`;
+        // Send registration with persistent nodeId and shareKey
         const registerMsg = {
           type: 'register',
+          share_key: this.shareKey, // Send our locally generated share key
           capabilities: {
-            node_id: nodeId,
+            node_id: this.nodeId, // Use persistent node ID
             gpus: this.hardware?.gpus.map((g) => ({
               vendor: g.vendor,
               model: g.model,
@@ -123,10 +185,11 @@ export class NodeService extends EventEmitter {
             mcp_adapters: [],
           },
           workspace_ids: this.workspaceIds,
+          resource_limits: this.resourceLimits, // Send configured resource limits
         };
 
         this.ws?.send(JSON.stringify(registerMsg));
-        this.log(`Registering with ${this.workspaceIds.length} workspace(s)...`, 'info');
+        this.log(`Registering as ${this.nodeId} with key ${this.shareKey}...`, 'info');
 
         // Start heartbeat
         this.heartbeatInterval = setInterval(() => {
@@ -146,12 +209,9 @@ export class NodeService extends EventEmitter {
 
           switch (msg.type) {
             case 'registered':
-              this.nodeId = msg.node_id;
-              this.shareKey = msg.share_key || null;
-              this.log(`Registered as node ${msg.node_id}`, 'success');
-              if (this.shareKey) {
-                this.log(`Share Key: ${this.shareKey} (use this to add node to workspaces)`, 'success');
-              }
+              // Server confirms our registration - keep using our local nodeId and shareKey
+              this.log(`Registered as node ${this.nodeId}`, 'success');
+              this.log(`Share Key: ${this.shareKey} (use this to add node to workspaces)`, 'success');
               this.emit('statusChange');
               break;
 
@@ -193,7 +253,7 @@ export class NodeService extends EventEmitter {
       this.ws.on('close', () => {
         this.log('Disconnected from orchestrator', 'info');
         this.connected = false;
-        this.nodeId = null;
+        // Keep nodeId - it's a persistent local value
         this.emit('statusChange');
 
         if (this.heartbeatInterval) {
@@ -313,8 +373,7 @@ export class NodeService extends EventEmitter {
     }
 
     this.connected = false;
-    this.nodeId = null;
-    this.shareKey = null;
+    // Keep nodeId and shareKey - they are persistent local values
     this.log('Node stopped', 'info');
     this.emit('statusChange');
   }
@@ -327,11 +386,11 @@ export class NodeService extends EventEmitter {
     return this.connected;
   }
 
-  getNodeId(): string | null {
+  getNodeId(): string {
     return this.nodeId;
   }
 
-  getShareKey(): string | null {
+  getShareKey(): string {
     return this.shareKey;
   }
 
