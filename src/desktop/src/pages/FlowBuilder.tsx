@@ -156,6 +156,15 @@ export function FlowBuilder() {
   }
   const [workspaceResources, setWorkspaceResources] = useState<WorkspaceResources | null>(null);
 
+  // Workspace selection (for non-workspace-mode flows)
+  interface WorkspaceListItem {
+    id: string;
+    name: string;
+  }
+  const [workspaces, setWorkspaces] = useState<WorkspaceListItem[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
+
   // Credential management
   const { isUnlocked, resolveCredentials, unlock, initialize, isInitialized } = useCredentials();
   const { needsSetup, needsUnlock, isReady: credentialsReady } = useCredentialStoreStatus();
@@ -246,6 +255,76 @@ export function FlowBuilder() {
     setSavedFlows(flowStorage.listFlows());
   }, []);
 
+  // Fetch user's workspaces for the selector
+  useEffect(() => {
+    if (isWorkspaceMode) return; // Skip if already editing a workspace flow
+
+    const fetchWorkspaces = async () => {
+      setLoadingWorkspaces(true);
+      try {
+        const res = await authFetch('/api/v1/workspaces');
+        if (res.ok) {
+          const data = await res.json();
+          setWorkspaces(data.workspaces || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch workspaces:', err);
+      } finally {
+        setLoadingWorkspaces(false);
+      }
+    };
+
+    fetchWorkspaces();
+  }, [isWorkspaceMode]);
+
+  // Fetch workspace resources when a workspace is selected
+  useEffect(() => {
+    const wsId = isWorkspaceMode ? workspaceId : selectedWorkspaceId;
+    if (!wsId) {
+      setWorkspaceResources(null);
+      return;
+    }
+
+    const fetchResources = async () => {
+      try {
+        // Fetch nodes and API keys in parallel
+        const [nodesRes, keysRes] = await Promise.all([
+          authFetch(`/api/v1/workspaces/${wsId}/nodes`),
+          authFetch(`/api/v1/workspaces/${wsId}/api-keys`),
+        ]);
+
+        const nodesData = nodesRes.ok ? await nodesRes.json() : { nodes: [] };
+        const keysData = keysRes.ok ? await keysRes.json() : { apiKeys: [] };
+
+        // Calculate totals from online nodes
+        const onlineNodes = (nodesData.nodes || []).filter((n: any) => n.status === 'online');
+        const totalCpu = onlineNodes.reduce((sum: number, n: any) => sum + (n.capabilities?.cpuCores || 0), 0);
+        const totalRam = onlineNodes.reduce((sum: number, n: any) => sum + Math.floor((n.capabilities?.memoryMb || 0) / 1024), 0);
+        const totalGpu = onlineNodes.reduce((sum: number, n: any) => sum + (n.capabilities?.gpuCount || 0), 0);
+        // Estimate VRAM: assume average 8GB per GPU if not specified
+        const totalVram = onlineNodes.reduce((sum: number, n: any) => sum + ((n.capabilities?.gpuVram || 8) * (n.capabilities?.gpuCount || 0)), 0);
+
+        setWorkspaceResources({
+          nodes: nodesData.nodes || [],
+          apiKeys: (keysData.apiKeys || []).map((k: any) => ({
+            id: k.id,
+            provider: k.provider,
+            name: k.name,
+          })),
+          totalCpu,
+          totalRam,
+          totalGpu,
+          totalVram,
+        });
+      } catch (err) {
+        console.error('Failed to fetch workspace resources:', err);
+        setWorkspaceResources(null);
+      }
+    };
+
+    fetchResources();
+  }, [isWorkspaceMode, workspaceId, selectedWorkspaceId]);
+
   // Load workspace flow when in workspace mode
   useEffect(() => {
     if (!isWorkspaceMode || workspaceFlowLoaded) return;
@@ -331,7 +410,7 @@ export function FlowBuilder() {
       })),
     };
 
-    // If in workspace mode, save to workspace API
+    // If in workspace mode, save to workspace API (update existing)
     if (isWorkspaceMode && workspaceId && workspaceFlowId) {
       try {
         const res = await authFetch(`/api/v1/workspaces/${workspaceId}/flows/${workspaceFlowId}`, {
@@ -355,6 +434,37 @@ export function FlowBuilder() {
       return;
     }
 
+    // If a workspace is selected, save as a new flow to that workspace
+    if (selectedWorkspaceId) {
+      try {
+        const res = await authFetch(`/api/v1/workspaces/${selectedWorkspaceId}/flows`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: flowName,
+            description: `Created from Flow Builder`,
+            flow: flowData,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentFlowId(data.flow?.id || null);
+          setHasUnsavedChanges(false);
+          setShowSaveDialog(false);
+          // Show success feedback
+          alert(`Flow saved to workspace! You can find it in the workspace's Flows tab.`);
+        } else {
+          console.error('Failed to save flow to workspace');
+          alert('Failed to save flow to workspace');
+        }
+      } catch (err) {
+        console.error('Error saving flow to workspace:', err);
+        alert('Error saving flow to workspace');
+      }
+      return;
+    }
+
     // Otherwise, save to local storage
     const flow: Flow = {
       id: currentFlowId || `flow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -372,7 +482,7 @@ export function FlowBuilder() {
     setHasUnsavedChanges(false);
     setSavedFlows(flowStorage.listFlows());
     setShowSaveDialog(false);
-  }, [currentFlowId, flowName, nodes, connections, isWorkspaceMode, workspaceId, workspaceFlowId]);
+  }, [currentFlowId, flowName, nodes, connections, isWorkspaceMode, workspaceId, workspaceFlowId, selectedWorkspaceId]);
 
   // Load a flow
   const loadFlow = useCallback((flowId: string) => {
@@ -546,8 +656,12 @@ export function FlowBuilder() {
         })),
       };
 
+      // Determine workspace for deployment
+      const activeWorkspaceId = isWorkspaceMode ? workspaceId : selectedWorkspaceId;
+
       // Deploy and wait for completion
       const result = await deployer.deployAndWait(flow, resolved, {
+        workspaceId: activeWorkspaceId || undefined,
         onStatusUpdate: (status) => {
           setDeploymentStatus(status);
           setDeploymentId(status.id);
@@ -558,14 +672,14 @@ export function FlowBuilder() {
 
       if (result.status === 'failed') {
         setDeploymentError(result.error || 'Deployment failed');
-      } else if (result.status === 'completed' && isWorkspaceMode && workspaceId) {
+      } else if (result.status === 'completed' && activeWorkspaceId) {
         // Record usage for workspace flows
         try {
-          await authFetch(`/api/v1/workspaces/${workspaceId}/usage`, {
+          await authFetch(`/api/v1/workspaces/${activeWorkspaceId}/usage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              flowId: workspaceFlowId,
+              flowId: isWorkspaceMode ? workspaceFlowId : currentFlowId,
               flowName: flowName,
               type: 'compute',
               computeSeconds: Math.round((result.completedAt ? new Date(result.completedAt).getTime() : Date.now()) - (result.startedAt ? new Date(result.startedAt).getTime() : Date.now())) / 1000 || 10,
@@ -581,7 +695,7 @@ export function FlowBuilder() {
     } finally {
       setIsDeploying(false);
     }
-  }, [nodes, connections, currentFlowId, flowName, saveFlow, hasCredentialRefs, credentialsReady, collectCredentialRefs, resolveCredentials, isWorkspaceMode, workspaceId, workspaceFlowId]);
+  }, [nodes, connections, currentFlowId, flowName, saveFlow, hasCredentialRefs, credentialsReady, collectCredentialRefs, resolveCredentials, isWorkspaceMode, workspaceId, workspaceFlowId, selectedWorkspaceId]);
 
   // Auto-trigger deployment when run=true and flow is loaded
   useEffect(() => {
@@ -1165,6 +1279,50 @@ export function FlowBuilder() {
             </div>
           </div>
         </div>
+
+        {/* Workspace Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-md)' }}>
+          {!isWorkspaceMode && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Server size={14} style={{ color: 'var(--text-muted)' }} />
+              <select
+                value={selectedWorkspaceId || ''}
+                onChange={(e) => setSelectedWorkspaceId(e.target.value || null)}
+                style={{
+                  padding: '6px 12px',
+                  background: 'rgba(0, 255, 255, 0.05)',
+                  border: '1px solid rgba(0, 255, 255, 0.3)',
+                  borderRadius: '4px',
+                  color: selectedWorkspaceId ? 'var(--primary)' : 'var(--text-muted)',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  minWidth: '150px',
+                }}
+              >
+                <option value="">No workspace (local)</option>
+                {workspaces.map((ws) => (
+                  <option key={ws.id} value={ws.id}>{ws.name}</option>
+                ))}
+              </select>
+              {selectedWorkspaceId && workspaceResources && (
+                <span style={{
+                  fontSize: '0.6rem',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  background: workspaceResources.nodes.filter(n => n.status === 'online').length > 0
+                    ? 'rgba(0, 255, 65, 0.15)'
+                    : 'rgba(255, 170, 0, 0.15)',
+                  color: workspaceResources.nodes.filter(n => n.status === 'online').length > 0
+                    ? 'var(--success)'
+                    : 'var(--warning)',
+                }}>
+                  {workspaceResources.nodes.filter(n => n.status === 'online').length} nodes online
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
         <div style={{ display: 'flex', gap: 'var(--gap-sm)' }}>
           {!isWorkspaceMode && (
             <CyberButton onClick={newFlow} icon={Plus} title="New flow">
@@ -1271,51 +1429,159 @@ export function FlowBuilder() {
             </div>
           </div>
 
-          {/* API Keys Status */}
-          <div style={{
-            flex: 1,
-            background: computeRequirements.missingKeys.length > 0
-              ? 'rgba(251, 191, 36, 0.05)'
-              : 'var(--bg-surface)',
-            border: `1px solid ${computeRequirements.missingKeys.length > 0 ? 'rgba(251, 191, 36, 0.3)' : 'rgba(0, 255, 255, 0.15)'}`,
-            borderRadius: 'var(--radius-md)',
-            padding: 'var(--gap-md)',
-          }}>
+          {/* Workspace Available Resources */}
+          {(selectedWorkspaceId || isWorkspaceMode) && workspaceResources && (
             <div style={{
-              fontSize: '0.7rem',
-              color: computeRequirements.missingKeys.length > 0 ? 'var(--warning)' : 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              marginBottom: 'var(--gap-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
+              flex: 1,
+              background: 'var(--bg-surface)',
+              border: '1px solid rgba(0, 255, 65, 0.2)',
+              borderRadius: 'var(--radius-md)',
+              padding: 'var(--gap-md)',
             }}>
-              <Key size={12} />
-              API Keys
-              {computeRequirements.missingKeys.length > 0 && (
-                <span style={{
-                  background: 'var(--warning)',
-                  color: 'var(--bg-void)',
-                  padding: '2px 6px',
-                  borderRadius: '3px',
-                  fontSize: '0.6rem',
-                  fontWeight: 'bold',
-                }}>
-                  {computeRequirements.missingKeys.length} MISSING
-                </span>
-              )}
-            </div>
-
-            {computeRequirements.requiredProviders.length === 0 ? (
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                No API keys required for this flow
+              <div style={{
+                fontSize: '0.7rem',
+                color: 'var(--success)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                marginBottom: 'var(--gap-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}>
+                <Server size={12} /> Workspace Available
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--gap-sm)' }}>
-                {computeRequirements.requiredProviders.map(provider => {
-                  const hasKey = apiKeys[provider];
-                  const providerInfo = API_PROVIDERS[provider];
+              <div style={{ display: 'flex', gap: 'var(--gap-xl)' }}>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '1.25rem',
+                    color: workspaceResources.totalVram >= computeRequirements.vram ? 'var(--success)' : 'var(--warning)',
+                  }}>
+                    {workspaceResources.totalVram > 0 ? `${workspaceResources.totalVram} GB` : 'N/A'}
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                    VRAM {workspaceResources.totalVram >= computeRequirements.vram ? '\u2713' : '\u2717'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '1.25rem',
+                    color: workspaceResources.totalRam >= computeRequirements.ram ? 'var(--success)' : 'var(--warning)',
+                  }}>
+                    {workspaceResources.totalRam} GB
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                    RAM {workspaceResources.totalRam >= computeRequirements.ram ? '\u2713' : '\u2717'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '1.25rem',
+                    color: workspaceResources.totalCpu >= computeRequirements.cpu ? 'var(--success)' : 'var(--warning)',
+                  }}>
+                    {workspaceResources.totalCpu}
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                    vCPU {workspaceResources.totalCpu >= computeRequirements.cpu ? '\u2713' : '\u2717'}
+                  </div>
+                </div>
+                <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                  <div style={{
+                    fontSize: '0.8rem',
+                    color: workspaceResources.totalVram >= computeRequirements.vram &&
+                           workspaceResources.totalRam >= computeRequirements.ram &&
+                           workspaceResources.totalCpu >= computeRequirements.cpu
+                      ? 'var(--success)'
+                      : 'var(--warning)',
+                    fontFamily: 'var(--font-display)',
+                  }}>
+                    {workspaceResources.totalVram >= computeRequirements.vram &&
+                     workspaceResources.totalRam >= computeRequirements.ram &&
+                     workspaceResources.totalCpu >= computeRequirements.cpu
+                      ? 'Ready'
+                      : 'Insufficient'}
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                    {workspaceResources.nodes.filter(n => n.status === 'online').length} node{workspaceResources.nodes.filter(n => n.status === 'online').length !== 1 ? 's' : ''} online
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* API Keys Status */}
+          {(() => {
+            // Determine which API keys are available (from workspace or local)
+            const wsKeys = workspaceResources?.apiKeys || [];
+            const hasWorkspaceKey = (provider: string) => wsKeys.some(k => k.provider === provider);
+            const hasLocalKey = (provider: string) => !!apiKeys[provider];
+            const activeWorkspace = selectedWorkspaceId || (isWorkspaceMode ? workspaceId : null);
+
+            // Calculate missing keys considering workspace keys
+            const missingKeys = activeWorkspace
+              ? computeRequirements.requiredProviders.filter(p => !hasWorkspaceKey(p) && !hasLocalKey(p))
+              : computeRequirements.missingKeys;
+
+            return (
+              <div style={{
+                flex: 1,
+                background: missingKeys.length > 0
+                  ? 'rgba(251, 191, 36, 0.05)'
+                  : 'var(--bg-surface)',
+                border: `1px solid ${missingKeys.length > 0 ? 'rgba(251, 191, 36, 0.3)' : 'rgba(0, 255, 255, 0.15)'}`,
+                borderRadius: 'var(--radius-md)',
+                padding: 'var(--gap-md)',
+              }}>
+                <div style={{
+                  fontSize: '0.7rem',
+                  color: missingKeys.length > 0 ? 'var(--warning)' : 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  marginBottom: 'var(--gap-sm)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}>
+                  <Key size={12} />
+                  API Keys
+                  {activeWorkspace && (
+                    <span style={{
+                      background: 'rgba(0, 255, 255, 0.15)',
+                      color: 'var(--primary)',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      fontSize: '0.55rem',
+                    }}>
+                      from workspace
+                    </span>
+                  )}
+                  {missingKeys.length > 0 && (
+                    <span style={{
+                      background: 'var(--warning)',
+                      color: 'var(--bg-void)',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      fontSize: '0.6rem',
+                      fontWeight: 'bold',
+                    }}>
+                      {missingKeys.length} MISSING
+                    </span>
+                  )}
+                </div>
+
+                {computeRequirements.requiredProviders.length === 0 ? (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    No API keys required for this flow
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--gap-sm)' }}>
+                    {computeRequirements.requiredProviders.map(provider => {
+                      const hasWsKey = hasWorkspaceKey(provider);
+                      const hasLocal = hasLocalKey(provider);
+                      const hasKey = activeWorkspace ? (hasWsKey || hasLocal) : hasLocal;
+                      const providerInfo = API_PROVIDERS[provider];
                   return (
                     <div
                       key={provider}
@@ -1339,26 +1605,28 @@ export function FlowBuilder() {
               </div>
             )}
 
-            {computeRequirements.missingKeys.length > 0 && (
-              <button
-                onClick={() => navigate('/settings')}
-                style={{
-                  marginTop: 'var(--gap-sm)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--primary)',
-                  fontSize: '0.75rem',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                Add API keys in Settings <ExternalLink size={12} />
-              </button>
-            )}
-          </div>
+                {missingKeys.length > 0 && (
+                  <button
+                    onClick={() => navigate('/settings')}
+                    style={{
+                      marginTop: 'var(--gap-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--primary)',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {activeWorkspace ? 'Add API keys to workspace' : 'Add API keys in Settings'} <ExternalLink size={12} />
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

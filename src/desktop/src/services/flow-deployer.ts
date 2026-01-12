@@ -12,6 +12,7 @@ import type { Flow, FlowNode, FlowConnection } from '../../../shared/schemas/flo
 export interface DeployFlowRequest {
   flowId: string;
   name: string;
+  workspaceId?: string; // Optional workspace for routing to workspace nodes
   nodes: {
     id: string;
     moduleId: string;
@@ -143,11 +144,13 @@ export class FlowDeployer {
       dryRun?: boolean;
       priority?: 'low' | 'normal' | 'high';
       maxCostCents?: number;
+      workspaceId?: string;
     }
   ): Promise<DeploymentResponse> {
     const request: DeployFlowRequest = {
       flowId: flow.id,
       name: flow.name,
+      workspaceId: options?.workspaceId,
       nodes: flow.nodes.map((node) => ({
         id: node.id,
         moduleId: node.moduleId,
@@ -289,6 +292,7 @@ export class FlowDeployer {
       dryRun?: boolean;
       priority?: 'low' | 'normal' | 'high';
       maxCostCents?: number;
+      workspaceId?: string;
       onStatusUpdate?: (status: DeploymentStatusResponse) => void;
     }
   ): Promise<DeploymentStatusResponse> {
@@ -296,6 +300,7 @@ export class FlowDeployer {
       dryRun: options?.dryRun,
       priority: options?.priority,
       maxCostCents: options?.maxCostCents,
+      workspaceId: options?.workspaceId,
     });
 
     return this.waitForCompletion(deployment.deployment_id, options?.onStatusUpdate);
