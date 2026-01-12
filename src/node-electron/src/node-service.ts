@@ -31,6 +31,7 @@ export class NodeService extends EventEmitter {
   private running = false;
   private connected = false;
   private nodeId: string | null = null;
+  private shareKey: string | null = null; // Share key for adding this node to workspaces
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private orchestratorUrl: string;
@@ -146,7 +147,11 @@ export class NodeService extends EventEmitter {
           switch (msg.type) {
             case 'registered':
               this.nodeId = msg.node_id;
+              this.shareKey = msg.share_key || null;
               this.log(`Registered as node ${msg.node_id}`, 'success');
+              if (this.shareKey) {
+                this.log(`Share Key: ${this.shareKey} (use this to add node to workspaces)`, 'success');
+              }
               this.emit('statusChange');
               break;
 
@@ -309,6 +314,7 @@ export class NodeService extends EventEmitter {
 
     this.connected = false;
     this.nodeId = null;
+    this.shareKey = null;
     this.log('Node stopped', 'info');
     this.emit('statusChange');
   }
@@ -323,6 +329,10 @@ export class NodeService extends EventEmitter {
 
   getNodeId(): string | null {
     return this.nodeId;
+  }
+
+  getShareKey(): string | null {
+    return this.shareKey;
   }
 
   getResourceLimits(): ResourceLimits {

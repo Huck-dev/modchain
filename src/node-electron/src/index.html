@@ -117,6 +117,54 @@
     .log-entry.error { color: #ff3366; }
 
     .loading { text-align: center; color: #606070; padding: 20px; }
+
+    .share-key-box {
+      display: none;
+      background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(255,0,255,0.1));
+      border: 2px solid rgba(0,212,255,0.3);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+    .share-key-box.visible { display: block; }
+    .share-key-label {
+      font-size: 0.7rem;
+      color: #606070;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .share-key-value {
+      font-family: 'Consolas', monospace;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #00d4ff;
+      letter-spacing: 4px;
+      margin-bottom: 8px;
+    }
+    .share-key-hint {
+      font-size: 0.7rem;
+      color: #606070;
+      margin-bottom: 12px;
+    }
+    .btn-copy {
+      padding: 8px 16px;
+      background: rgba(0,212,255,0.2);
+      border: 1px solid rgba(0,212,255,0.4);
+      border-radius: 6px;
+      color: #00d4ff;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-copy:hover {
+      background: rgba(0,212,255,0.3);
+    }
+    .btn-copy.copied {
+      background: rgba(0,255,65,0.2);
+      border-color: rgba(0,255,65,0.4);
+      color: #00ff41;
+    }
   </style>
 </head>
 <body>
@@ -139,6 +187,13 @@
     <button id="stop-btn" class="btn btn-stop" style="display:none;">Stop Node</button>
   </div>
 
+  <div id="share-key-box" class="card share-key-box">
+    <div class="share-key-label">Share Key</div>
+    <div id="share-key-value" class="share-key-value">--------</div>
+    <div class="share-key-hint">Enter this key in a workspace to add this node</div>
+    <button id="copy-key-btn" class="btn-copy">Copy to Clipboard</button>
+  </div>
+
   <div class="card">
     <div class="card-title">Log</div>
     <div id="log" class="log"></div>
@@ -156,6 +211,9 @@
       const stopBtn = document.getElementById('stop-btn');
       const statusDot = document.getElementById('status-dot');
       const statusText = document.getElementById('status-text');
+      const shareKeyBox = document.getElementById('share-key-box');
+      const shareKeyValue = document.getElementById('share-key-value');
+      const copyKeyBtn = document.getElementById('copy-key-btn');
 
       function addLog(msg, type = 'info') {
         const entry = document.createElement('div');
@@ -233,9 +291,34 @@
         if (status.running) {
           statusDot.className = 'status-dot ' + (status.connected ? 'online' : 'connecting');
           statusText.textContent = status.connected ? 'Connected' : 'Connecting...';
+
+          // Show share key when connected
+          if (status.shareKey) {
+            shareKeyValue.textContent = status.shareKey;
+            shareKeyBox.classList.add('visible');
+          }
         } else {
           statusDot.className = 'status-dot';
           statusText.textContent = 'Offline';
+          shareKeyBox.classList.remove('visible');
+        }
+      });
+
+      // Copy share key to clipboard
+      copyKeyBtn.addEventListener('click', async () => {
+        const key = shareKeyValue.textContent;
+        if (key && key !== '--------') {
+          try {
+            await navigator.clipboard.writeText(key);
+            copyKeyBtn.textContent = 'Copied!';
+            copyKeyBtn.classList.add('copied');
+            setTimeout(() => {
+              copyKeyBtn.textContent = 'Copy to Clipboard';
+              copyKeyBtn.classList.remove('copied');
+            }, 2000);
+          } catch (err) {
+            addLog('Failed to copy: ' + err, 'error');
+          }
         }
       });
 

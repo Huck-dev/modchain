@@ -165,6 +165,7 @@ app.whenReady().then(async () => {
       running: nodeService?.isRunning(),
       connected: nodeService?.isConnected(),
       nodeId: nodeService?.getNodeId(),
+      shareKey: nodeService?.getShareKey(),
     });
   });
 
@@ -182,6 +183,7 @@ app.whenReady().then(async () => {
       running: nodeService?.isRunning() ?? false,
       connected: nodeService?.isConnected() ?? false,
       nodeId: nodeService?.getNodeId() ?? null,
+      shareKey: nodeService?.getShareKey() ?? null,
     };
   });
 
