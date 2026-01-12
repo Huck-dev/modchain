@@ -22,24 +22,25 @@
 
 ## Recent Completions (This Session)
 
-### 1. Drive Selector for Storage Sharing
+### 1. IPFS Integration (Phase 2)
+- Bundled kubo v0.24.0 binaries (Win: 67MB, Linux: 87MB)
+- Created IPFSManager class with full lifecycle management
+- Private network mode for workspace isolation
+- IPFS Storage card in UI with Start/Stop controls
+- Real-time stats display (repo size, objects, peers)
+- Handle workspace_joined message with swarm key
+- Auto-connect to bootstrap peers
+- Send ipfs_ready with peer ID and addresses
+
+### 2. Drive Selector (Phase 1)
 - Added `getDrives()` to hardware.ts - detects all drives/partitions
 - Drive selector dropdown in Resource Limits UI
-- Visual drive usage bar with color coding (green/yellow/red)
-- Storage slider max adjusts based on selected drive's available space
-- Storage path persisted in node config
-- Storage path sent to orchestrator in registration message
+- Visual drive usage bar with color coding
+- Storage path persisted and sent to orchestrator
 
-### 2. IPFS Storage Planning Document
-- Created comprehensive IPFS-STORAGE.md planning doc
-- Workspace-scoped private IPFS swarms (content isolation)
-- Detailed implementation phases with code examples
-- Decision rationale (Kubo vs js-ipfs, etc.)
-
-### 3. Release v1.2.0
-- Created new GitHub release on rhizos-node repo
-- Windows installer: OtherThing-Node-Setup.exe (73MB)
-- Linux AppImage: OtherThing-Node.AppImage (100MB)
+### 3. Release v1.3.0
+- Windows installer: 99MB (was 73MB, +IPFS)
+- Linux AppImage: 137MB (was 100MB, +IPFS)
 - Downloads updated on production server
 
 ---
@@ -227,9 +228,11 @@ gh release create v1.1.0 \
 
 ## Remaining TODOs
 - [ ] **IPFS Integration** (see IPFS-STORAGE.md)
-  - [ ] Bundle kubo binary in electron app
-  - [ ] Workspace swarm key management in orchestrator
-  - [ ] Private IPFS clusters per workspace
+  - [x] Bundle kubo binary in electron app (v1.3.0)
+  - [ ] Workspace swarm key management in orchestrator (Phase 3)
+  - [ ] Private IPFS clusters per workspace (Phase 3)
+  - [ ] Content operations API (Phase 4)
+  - [ ] Dashboard storage tab (Phase 5)
 - [ ] HTTPS (Let's Encrypt) for production security
 - [ ] Make rhizos-node repo private again
 - [ ] Full token/cost tracking in orchestrator
@@ -246,7 +249,7 @@ gh release create v1.1.0 \
 - Storage: 15TB+
 
 ## Current Release
-- **rhizos-node**: v1.2.0 (Drive Selector)
+- **rhizos-node**: v1.3.0 (IPFS Integration)
 - **Downloads**: http://155.117.46.228/downloads/
 
 ## Planning Documents
