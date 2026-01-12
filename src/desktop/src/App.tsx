@@ -1,8 +1,7 @@
 import { Routes, Route, NavLink } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Server, Settings as SettingsIcon, Wifi, WifiOff, Rocket, Box, GitBranch, Download, Users, LogOut } from 'lucide-react';
-import { Dashboard, NodeControl, Settings, SubmitJob, Modules, Deploy, FlowBuilder, Login } from './pages';
-import { DownloadPage } from './pages/Download';
+import { LayoutDashboard, Server, Settings as SettingsIcon, Wifi, WifiOff, GitBranch, Users, LogOut } from 'lucide-react';
+import { Dashboard, NodeControl, Settings, SubmitJob, FlowBuilder, Login } from './pages';
 import { WorkspacePage } from './pages/Workspace';
 import { WorkspaceDetail } from './pages/WorkspaceDetail';
 import { ModuleProvider } from './context/ModuleContext';
@@ -148,25 +147,13 @@ function App() {
               <Users size={16} />
               <span>Workspace</span>
             </NavLink>
-            <NavLink to="/deploy" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Rocket size={16} />
-              <span>Deploy</span>
-            </NavLink>
             <NavLink to="/flow" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <GitBranch size={16} />
               <span>Flow</span>
             </NavLink>
-            <NavLink to="/modules" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Box size={16} />
-              <span>Modules</span>
-            </NavLink>
             <NavLink to="/node" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <Server size={16} />
               <span>Node</span>
-            </NavLink>
-            <NavLink to="/download" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Download size={16} />
-              <span>Install</span>
             </NavLink>
             <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <SettingsIcon size={16} />
@@ -207,12 +194,9 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/workspace" element={<WorkspacePage />} />
             <Route path="/workspace/:id" element={<WorkspaceDetail />} />
-            <Route path="/deploy" element={<Deploy />} />
             <Route path="/flow" element={<FlowBuilder />} />
             <Route path="/submit" element={<SubmitJob />} />
-            <Route path="/modules" element={<Modules />} />
             <Route path="/node" element={<NodeControl />} />
-            <Route path="/download" element={<DownloadPage />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
