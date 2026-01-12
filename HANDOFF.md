@@ -198,10 +198,21 @@ pnpm dist:linux
 ```
 
 ## TODOs / Known Issues
-1. Flow "EDIT" button links to FlowBuilder but workspace flow loading not implemented
-2. Flow "RUN" button is placeholder (console.log)
-3. Resource tracking needs to be called during actual flow execution
+1. ~~Flow "EDIT" button links to FlowBuilder but workspace flow loading not implemented~~ ✅ DONE
+2. ~~Flow "RUN" button is placeholder (console.log)~~ ✅ DONE
+3. ~~Resource tracking needs to be called during actual flow execution~~ ✅ Basic tracking done
 4. Consider HTTPS (Let's Encrypt) for better security
+5. Full token/cost tracking requires orchestrator-side implementation
+
+## Recent Changes (Jan 12, 2026)
+- **Workspace Flow Editor Integration**: FlowBuilder now reads `workspaceId` and `flowId` from URL params
+  - EDIT button loads flow into full drag-and-drop editor
+  - Changes save back to workspace API via PATCH
+  - "Workspace Flow" badge shown in UI
+  - Back button returns to workspace
+- **Flow RUN Button**: Click RUN to auto-navigate to FlowBuilder with `run=true` param
+  - Auto-triggers deployment after flow loads
+  - Records basic compute usage to workspace on completion
 
 ## User's Hardware
 - CPU: Ryzen Threadripper PRO 5995WX (64 cores, 128 threads)
@@ -212,5 +223,5 @@ pnpm dist:linux
 ## Git Info
 - Remote: https://github.com/Huck-dev/rhizos-cloud.git
 - Branch: main
-- Latest: "Add workspace flows, API keys, and resource tracking"
+- Latest: "Add workspace flow editor integration"
 - Release: v0.1.2 (Windows + Linux installers)
