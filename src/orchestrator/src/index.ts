@@ -448,6 +448,234 @@ app.delete('/api/v1/workspaces/:id/tasks/:taskId', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// ============ Workspace API Keys ============
+
+// Get API keys for a workspace (masked)
+app.get('/api/v1/workspaces/:id/api-keys', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.getApiKeys(req.params.id, session.userId);
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ apiKeys: result.apiKeys });
+});
+
+// Add an API key to a workspace
+app.post('/api/v1/workspaces/:id/api-keys', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const { provider, name, key } = req.body;
+
+  if (!provider || !name || !key) {
+    res.status(400).json({ error: 'provider, name, and key are required' });
+    return;
+  }
+
+  const validProviders = ['openai', 'anthropic', 'google', 'groq', 'custom'];
+  if (!validProviders.includes(provider)) {
+    res.status(400).json({ error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` });
+    return;
+  }
+
+  const result = workspaceManager.addApiKey(
+    req.params.id,
+    session.userId,
+    provider,
+    name,
+    key
+  );
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  // Return the key with masked value
+  res.json({
+    success: true,
+    apiKey: {
+      id: result.apiKey!.id,
+      provider: result.apiKey!.provider,
+      name: result.apiKey!.name,
+      maskedKey: key.slice(0, 8) + '...' + key.slice(-4),
+      addedBy: result.apiKey!.addedBy,
+      addedAt: result.apiKey!.addedAt,
+    },
+  });
+});
+
+// Remove an API key from a workspace
+app.delete('/api/v1/workspaces/:id/api-keys/:keyId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.removeApiKey(
+    req.params.id,
+    session.userId,
+    req.params.keyId
+  );
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ success: true });
+});
+
+// ============ Workspace Flows ============
+
+// Get all flows for a workspace
+app.get('/api/v1/workspaces/:id/flows', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.getFlows(req.params.id, session.userId);
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ flows: result.flows });
+});
+
+// Get a specific flow
+app.get('/api/v1/workspaces/:id/flows/:flowId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.getFlow(req.params.id, req.params.flowId, session.userId);
+
+  if (!result.success) {
+    res.status(404).json({ error: result.error });
+    return;
+  }
+
+  res.json({ flow: result.flow });
+});
+
+// Create a new flow
+app.post('/api/v1/workspaces/:id/flows', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const { name, description, flow } = req.body;
+
+  if (!name) {
+    res.status(400).json({ error: 'Flow name is required' });
+    return;
+  }
+
+  const result = workspaceManager.createFlow(
+    req.params.id,
+    session.userId,
+    name,
+    description || '',
+    flow || { nodes: [], connections: [] }
+  );
+
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.status(201).json({ flow: result.flow });
+});
+
+// Update a flow
+app.patch('/api/v1/workspaces/:id/flows/:flowId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const { name, description, flow } = req.body;
+
+  const result = workspaceManager.updateFlow(
+    req.params.id,
+    req.params.flowId,
+    session.userId,
+    { name, description, flow }
+  );
+
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json({ flow: result.flow });
+});
+
+// Delete a flow
+app.delete('/api/v1/workspaces/:id/flows/:flowId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.deleteFlow(
+    req.params.id,
+    req.params.flowId,
+    session.userId
+  );
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ success: true });
+});
+
+// ============ Workspace Resource Usage ============
+
+// Get resource usage for a workspace
+app.get('/api/v1/workspaces/:id/usage', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.getResourceUsage(req.params.id, session.userId);
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ usage: result.usage });
+});
+
+// Get resource usage summary (aggregated)
+app.get('/api/v1/workspaces/:id/usage/summary', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const days = parseInt(req.query.days as string) || 30;
+  const result = workspaceManager.getUsageSummary(req.params.id, session.userId, days);
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ summary: result.summary });
+});
+
+// Record resource usage (typically called internally during flow execution)
+app.post('/api/v1/workspaces/:id/usage', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const { flowId, flowName, type, provider, tokensUsed, computeSeconds, costCents } = req.body;
+
+  if (!type) {
+    res.status(400).json({ error: 'Usage type is required' });
+    return;
+  }
+
+  const result = workspaceManager.recordUsage(
+    req.params.id,
+    session.userId,
+    {
+      flowId,
+      flowName,
+      type,
+      provider,
+      tokensUsed,
+      computeSeconds,
+      costCents: costCents || 0,
+      userId: session.userId,
+    }
+  );
+
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.status(201).json({ entry: result.entry });
+});
+
 // ============ Protected API Endpoints ============
 
 // Network statistics

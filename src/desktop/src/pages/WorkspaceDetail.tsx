@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, MoreVertical, GripVertical, Users, Server,
   Terminal, LayoutGrid, Trash2, Edit2, CheckCircle, Clock, Circle,
-  Copy, RefreshCw, Settings, Cpu, HardDrive, Zap
+  Copy, RefreshCw, Settings, Cpu, HardDrive, Zap, Key, GitBranch, Play,
+  DollarSign, Activity
 } from 'lucide-react';
 import { CyberButton } from '../components';
 import { authFetch } from '../App';
@@ -62,7 +63,26 @@ interface Workspace {
   createdAt: string;
 }
 
-type TabType = 'tasks' | 'console' | 'resources';
+type TabType = 'tasks' | 'console' | 'resources' | 'api-keys' | 'flows';
+
+interface WorkspaceFlow {
+  id: string;
+  name: string;
+  description: string;
+  flow: any;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ApiKey {
+  id: string;
+  provider: 'openai' | 'anthropic' | 'google' | 'groq' | 'custom';
+  name: string;
+  maskedKey: string;
+  addedBy: string;
+  addedAt: string;
+}
 
 const COLUMN_CONFIG = [
   { id: 'todo', title: 'To Do', icon: Circle, color: 'var(--text-muted)' },
@@ -100,6 +120,35 @@ export function WorkspaceDetail() {
   const [consoleHistory, setConsoleHistory] = useState<Array<{ type: 'input' | 'output' | 'error'; text: string }>>([
     { type: 'output', text: 'Welcome to OtherThing Console. Type "help" for available commands.' },
   ]);
+
+  // API Keys state
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyForm, setApiKeyForm] = useState({
+    provider: 'openai' as ApiKey['provider'],
+    name: '',
+    key: '',
+  });
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+
+  // Flows state
+  const [flows, setFlows] = useState<WorkspaceFlow[]>([]);
+  const [showFlowModal, setShowFlowModal] = useState(false);
+  const [flowForm, setFlowForm] = useState({
+    name: '',
+    description: '',
+  });
+  const [flowError, setFlowError] = useState<string | null>(null);
+
+  // Usage state
+  interface UsageSummary {
+    totalCostCents: number;
+    totalTokens: number;
+    totalComputeSeconds: number;
+    byProvider: Record<string, { tokens: number; cost: number }>;
+    byFlow: Record<string, { runs: number; cost: number }>;
+  }
+  const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
 
   // Load workspace data
   const loadWorkspace = useCallback(async () => {
@@ -148,11 +197,59 @@ export function WorkspaceDetail() {
     }
   }, [id]);
 
+  // Load API keys
+  const loadApiKeys = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/api-keys`);
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeys(data.apiKeys || []);
+      }
+    } catch {
+      // API keys might fail, use empty
+    }
+  }, [id]);
+
+  // Load flows
+  const loadFlows = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/flows`);
+      if (res.ok) {
+        const data = await res.json();
+        setFlows(data.flows || []);
+      }
+    } catch {
+      // Flows might fail, use empty
+    }
+  }, [id]);
+
+  // Load usage summary
+  const loadUsage = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/usage/summary?days=30`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsageSummary(data.summary || null);
+      }
+    } catch {
+      // Usage might fail, use null
+    }
+  }, [id]);
+
   useEffect(() => {
     loadWorkspace();
     loadTasks();
     loadNodes();
-  }, [loadWorkspace, loadTasks, loadNodes]);
+    loadApiKeys();
+    loadFlows();
+    loadUsage();
+  }, [loadWorkspace, loadTasks, loadNodes, loadApiKeys, loadFlows, loadUsage]);
 
   // Task CRUD
   const createTask = async () => {
@@ -222,6 +319,96 @@ export function WorkspaceDetail() {
       });
     } catch {
       // Local delete already done
+    }
+  };
+
+  // API Key management
+  const addApiKey = async () => {
+    if (!apiKeyForm.name.trim() || !apiKeyForm.key.trim() || !id) return;
+
+    setApiKeyError(null);
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiKeyForm),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeys(prev => [...prev, data.apiKey]);
+        setApiKeyForm({ provider: 'openai', name: '', key: '' });
+        setShowApiKeyModal(false);
+      } else {
+        const data = await res.json();
+        setApiKeyError(data.error || 'Failed to add API key');
+      }
+    } catch (err) {
+      setApiKeyError('Network error');
+    }
+  };
+
+  const removeApiKey = async (keyId: string) => {
+    if (!id) return;
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/api-keys/${keyId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setApiKeys(prev => prev.filter(k => k.id !== keyId));
+      }
+    } catch {
+      // Failed to delete
+    }
+  };
+
+  // Flow management
+  const createFlow = async () => {
+    if (!flowForm.name.trim() || !id) return;
+
+    setFlowError(null);
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/flows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: flowForm.name,
+          description: flowForm.description,
+          flow: { nodes: [], connections: [] },
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setFlows(prev => [...prev, data.flow]);
+        setFlowForm({ name: '', description: '' });
+        setShowFlowModal(false);
+      } else {
+        const data = await res.json();
+        setFlowError(data.error || 'Failed to create flow');
+      }
+    } catch (err) {
+      setFlowError('Network error');
+    }
+  };
+
+  const deleteFlow = async (flowId: string) => {
+    if (!id) return;
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/flows/${flowId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setFlows(prev => prev.filter(f => f.id !== flowId));
+      }
+    } catch {
+      // Failed to delete
     }
   };
 
@@ -395,8 +582,10 @@ Members: ${workspace?.members.length || 0}`
       }}>
         {[
           { id: 'tasks', label: 'Tasks', icon: LayoutGrid },
+          { id: 'flows', label: 'Flows', icon: GitBranch },
           { id: 'console', label: 'Console', icon: Terminal },
           { id: 'resources', label: 'Resources', icon: Server },
+          { id: 'api-keys', label: 'API Keys', icon: Key },
         ].map(tab => (
           <button
             key={tab.id}
@@ -596,6 +785,144 @@ Members: ${workspace?.members.length || 0}`
         </div>
       )}
 
+      {activeTab === 'flows' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--gap-md)' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              {flows.length} flow{flows.length !== 1 ? 's' : ''} in this workspace
+            </span>
+            <CyberButton variant="primary" icon={Plus} onClick={() => { setFlowError(null); setShowFlowModal(true); }}>
+              CREATE FLOW
+            </CyberButton>
+          </div>
+
+          {flows.length === 0 ? (
+            <div className="cyber-card">
+              <div className="cyber-card-body" style={{ textAlign: 'center', padding: 'var(--gap-xl)' }}>
+                <GitBranch size={48} style={{ color: 'var(--text-muted)', opacity: 0.3, marginBottom: 'var(--gap-md)' }} />
+                <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--gap-md)' }}>
+                  No flows created in this workspace yet.
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  Create a flow to automate tasks using workspace compute and API keys.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+              gap: 'var(--gap-md)',
+            }}>
+              {flows.map(flow => (
+                <div key={flow.id} className="cyber-card hover-lift" style={{ margin: 0 }}>
+                  <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      marginBottom: 'var(--gap-sm)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
+                        <div style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--bg-void)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <GitBranch size={18} style={{ color: 'var(--primary)' }} />
+                        </div>
+                        <div>
+                          <div style={{
+                            fontFamily: 'var(--font-display)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.95rem',
+                          }}>
+                            {flow.name}
+                          </div>
+                          <div style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-muted)',
+                          }}>
+                            {flow.flow?.nodes?.length || 0} nodes
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteFlow(flow.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          padding: '4px',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = 'var(--error)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = 'var(--text-muted)';
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    {flow.description && (
+                      <p style={{
+                        fontSize: '0.8rem',
+                        color: 'var(--text-muted)',
+                        marginBottom: 'var(--gap-sm)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {flow.description}
+                      </p>
+                    )}
+                    <div style={{
+                      display: 'flex',
+                      gap: 'var(--gap-sm)',
+                      marginTop: 'var(--gap-sm)',
+                    }}>
+                      <CyberButton
+                        size="sm"
+                        icon={Edit2}
+                        onClick={() => navigate(`/flow-builder?workspaceId=${id}&flowId=${flow.id}`)}
+                      >
+                        EDIT
+                      </CyberButton>
+                      <CyberButton
+                        size="sm"
+                        variant="primary"
+                        icon={Play}
+                        onClick={() => {
+                          // TODO: Deploy/run flow
+                          console.log('Run flow:', flow.id);
+                        }}
+                      >
+                        RUN
+                      </CyberButton>
+                    </div>
+                    <div style={{
+                      marginTop: 'var(--gap-sm)',
+                      paddingTop: 'var(--gap-sm)',
+                      borderTop: '1px solid var(--border-subtle)',
+                      fontSize: '0.7rem',
+                      color: 'var(--text-muted)',
+                    }}>
+                      Updated {new Date(flow.updatedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab === 'console' && (
         <div className="cyber-card">
           <div className="cyber-card-header">
@@ -746,6 +1073,99 @@ Members: ${workspace?.members.length || 0}`
             </div>
           )}
 
+          {/* Usage Summary Section */}
+          <h3 style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '0.9rem',
+            color: 'var(--text-primary)',
+            marginTop: 'var(--gap-xl)',
+            marginBottom: 'var(--gap-md)',
+            textTransform: 'uppercase',
+          }}>
+            Resource Usage (Last 30 Days)
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: 'var(--gap-md)',
+            marginBottom: 'var(--gap-md)',
+          }}>
+            <div className="cyber-card" style={{ margin: 0 }}>
+              <div className="cyber-card-body" style={{ padding: 'var(--gap-md)', textAlign: 'center' }}>
+                <DollarSign size={24} style={{ color: 'var(--success)', marginBottom: 'var(--gap-xs)' }} />
+                <div style={{ fontSize: '1.5rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
+                  ${((usageSummary?.totalCostCents || 0) / 100).toFixed(2)}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Total Cost
+                </div>
+              </div>
+            </div>
+            <div className="cyber-card" style={{ margin: 0 }}>
+              <div className="cyber-card-body" style={{ padding: 'var(--gap-md)', textAlign: 'center' }}>
+                <Activity size={24} style={{ color: 'var(--primary)', marginBottom: 'var(--gap-xs)' }} />
+                <div style={{ fontSize: '1.5rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
+                  {((usageSummary?.totalTokens || 0) / 1000).toFixed(1)}K
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Tokens Used
+                </div>
+              </div>
+            </div>
+            <div className="cyber-card" style={{ margin: 0 }}>
+              <div className="cyber-card-body" style={{ padding: 'var(--gap-md)', textAlign: 'center' }}>
+                <Clock size={24} style={{ color: 'var(--warning)', marginBottom: 'var(--gap-xs)' }} />
+                <div style={{ fontSize: '1.5rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
+                  {Math.round((usageSummary?.totalComputeSeconds || 0) / 60)}m
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Compute Time
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Usage by Provider */}
+          {usageSummary && Object.keys(usageSummary.byProvider).length > 0 && (
+            <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)' }}>
+              <div className="cyber-card-header">
+                <span className="cyber-card-title">USAGE BY PROVIDER</span>
+              </div>
+              <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                {Object.entries(usageSummary.byProvider).map(([provider, data]) => (
+                  <div
+                    key={provider}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 'var(--gap-sm)',
+                      background: 'var(--bg-void)',
+                      borderRadius: 'var(--radius-sm)',
+                      marginBottom: 'var(--gap-xs)',
+                    }}
+                  >
+                    <span style={{
+                      textTransform: 'capitalize',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.9rem',
+                    }}>
+                      {provider}
+                    </span>
+                    <div style={{ display: 'flex', gap: 'var(--gap-md)', fontSize: '0.8rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {(data.tokens / 1000).toFixed(1)}K tokens
+                      </span>
+                      <span style={{ color: 'var(--success)' }}>
+                        ${(data.cost / 100).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Members Section */}
           <h3 style={{
             fontFamily: 'var(--font-display)',
@@ -796,6 +1216,177 @@ Members: ${workspace?.members.length || 0}`
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'api-keys' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--gap-md)' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              {apiKeys.length} API key{apiKeys.length !== 1 ? 's' : ''} configured
+            </span>
+            <CyberButton variant="primary" icon={Plus} onClick={() => { setApiKeyError(null); setShowApiKeyModal(true); }}>
+              ADD API KEY
+            </CyberButton>
+          </div>
+
+          {apiKeys.length === 0 ? (
+            <div className="cyber-card">
+              <div className="cyber-card-body" style={{ textAlign: 'center', padding: 'var(--gap-xl)' }}>
+                <Key size={48} style={{ color: 'var(--text-muted)', opacity: 0.3, marginBottom: 'var(--gap-md)' }} />
+                <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--gap-md)' }}>
+                  No API keys configured for this workspace yet.
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  Add API keys to enable AI model access for workspace flows.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap-sm)' }}>
+              {apiKeys.map(key => (
+                <div
+                  key={key.id}
+                  className="cyber-card"
+                  style={{ margin: 0 }}
+                >
+                  <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-md)' }}>
+                        <div style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--bg-void)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Key size={18} style={{ color: 'var(--primary)' }} />
+                        </div>
+                        <div>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--gap-sm)',
+                            marginBottom: '4px',
+                          }}>
+                            <span style={{
+                              fontFamily: 'var(--font-display)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.9rem',
+                            }}>
+                              {key.name}
+                            </span>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              background: key.provider === 'openai' ? 'rgba(16, 163, 127, 0.2)' :
+                                         key.provider === 'anthropic' ? 'rgba(217, 119, 87, 0.2)' :
+                                         key.provider === 'google' ? 'rgba(66, 133, 244, 0.2)' :
+                                         key.provider === 'groq' ? 'rgba(255, 136, 0, 0.2)' :
+                                         'rgba(128, 128, 128, 0.2)',
+                              color: key.provider === 'openai' ? '#10a37f' :
+                                     key.provider === 'anthropic' ? '#d97757' :
+                                     key.provider === 'google' ? '#4285f4' :
+                                     key.provider === 'groq' ? '#ff8800' :
+                                     'var(--text-muted)',
+                              textTransform: 'uppercase',
+                            }}>
+                              {key.provider}
+                            </span>
+                          </div>
+                          <div style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.8rem',
+                            color: 'var(--text-muted)',
+                          }}>
+                            {key.maskedKey}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeApiKey(key.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          padding: '8px',
+                          borderRadius: 'var(--radius-sm)',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = 'var(--error)';
+                          e.currentTarget.style.background = 'rgba(255, 100, 100, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = 'var(--text-muted)';
+                          e.currentTarget.style.background = 'none';
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Supported Providers Info */}
+          <div style={{ marginTop: 'var(--gap-xl)' }}>
+            <h3 style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.9rem',
+              color: 'var(--text-primary)',
+              marginBottom: 'var(--gap-md)',
+              textTransform: 'uppercase',
+            }}>
+              Supported Providers
+            </h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+              gap: 'var(--gap-sm)',
+            }}>
+              {[
+                { id: 'openai', name: 'OpenAI', color: '#10a37f' },
+                { id: 'anthropic', name: 'Anthropic', color: '#d97757' },
+                { id: 'google', name: 'Google AI', color: '#4285f4' },
+                { id: 'groq', name: 'Groq', color: '#ff8800' },
+                { id: 'custom', name: 'Custom', color: 'var(--text-muted)' },
+              ].map(provider => (
+                <div
+                  key={provider.id}
+                  style={{
+                    padding: 'var(--gap-sm) var(--gap-md)',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--gap-sm)',
+                  }}
+                >
+                  <div style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: provider.color,
+                  }} />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    {provider.name}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -917,6 +1508,234 @@ Members: ${workspace?.members.length || 0}`
                 </CyberButton>
                 <CyberButton variant="primary" icon={Plus} onClick={createTask} disabled={!taskForm.title.trim()}>
                   {editingTask ? 'UPDATE' : 'CREATE'}
+                </CyberButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add API Key Modal */}
+      {showApiKeyModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={() => setShowApiKeyModal(false)}>
+          <div
+            className="cyber-card"
+            style={{ width: '100%', maxWidth: 500 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="cyber-card-header">
+              <span className="cyber-card-title">ADD API KEY</span>
+            </div>
+            <div className="cyber-card-body">
+              {apiKeyError && (
+                <div style={{
+                  marginBottom: 'var(--gap-md)',
+                  padding: 'var(--gap-sm) var(--gap-md)',
+                  background: 'rgba(255, 100, 100, 0.1)',
+                  border: '1px solid var(--error)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--error)',
+                  fontSize: '0.85rem',
+                }}>
+                  {apiKeyError}
+                </div>
+              )}
+              <div style={{ marginBottom: 'var(--gap-md)' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                }}>
+                  Provider
+                </label>
+                <select
+                  value={apiKeyForm.provider}
+                  onChange={(e) => setApiKeyForm(prev => ({ ...prev, provider: e.target.value as ApiKey['provider'] }))}
+                  className="settings-input"
+                  style={{ cursor: 'pointer' }}
+                >
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="google">Google AI</option>
+                  <option value="groq">Groq</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: 'var(--gap-md)' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                }}>
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={apiKeyForm.name}
+                  onChange={(e) => setApiKeyForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Production GPT-4 Key"
+                  className="settings-input"
+                />
+              </div>
+              <div style={{ marginBottom: 'var(--gap-lg)' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                }}>
+                  API Key
+                </label>
+                <input
+                  type="password"
+                  value={apiKeyForm.key}
+                  onChange={(e) => setApiKeyForm(prev => ({ ...prev, key: e.target.value }))}
+                  placeholder="sk-..."
+                  className="settings-input"
+                />
+                <p style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  marginTop: '4px',
+                }}>
+                  Keys are stored securely and shared only with workspace members.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--gap-sm)', justifyContent: 'flex-end' }}>
+                <CyberButton onClick={() => {
+                  setShowApiKeyModal(false);
+                  setApiKeyForm({ provider: 'openai', name: '', key: '' });
+                }}>
+                  CANCEL
+                </CyberButton>
+                <CyberButton
+                  variant="primary"
+                  icon={Plus}
+                  onClick={addApiKey}
+                  disabled={!apiKeyForm.name.trim() || !apiKeyForm.key.trim()}
+                >
+                  ADD KEY
+                </CyberButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Flow Modal */}
+      {showFlowModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={() => setShowFlowModal(false)}>
+          <div
+            className="cyber-card"
+            style={{ width: '100%', maxWidth: 500 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="cyber-card-header">
+              <span className="cyber-card-title">CREATE FLOW</span>
+            </div>
+            <div className="cyber-card-body">
+              {flowError && (
+                <div style={{
+                  marginBottom: 'var(--gap-md)',
+                  padding: 'var(--gap-sm) var(--gap-md)',
+                  background: 'rgba(255, 100, 100, 0.1)',
+                  border: '1px solid var(--error)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--error)',
+                  fontSize: '0.85rem',
+                }}>
+                  {flowError}
+                </div>
+              )}
+              <div style={{ marginBottom: 'var(--gap-md)' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                }}>
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={flowForm.name}
+                  onChange={(e) => setFlowForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Data Processing Pipeline"
+                  className="settings-input"
+                  autoFocus
+                />
+              </div>
+              <div style={{ marginBottom: 'var(--gap-lg)' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                }}>
+                  Description (optional)
+                </label>
+                <textarea
+                  value={flowForm.description}
+                  onChange={(e) => setFlowForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="What does this flow do?"
+                  className="settings-input"
+                  rows={3}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+              <p style={{
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+                marginBottom: 'var(--gap-md)',
+                background: 'var(--bg-void)',
+                padding: 'var(--gap-sm) var(--gap-md)',
+                borderRadius: 'var(--radius-sm)',
+              }}>
+                Flows in this workspace can use the shared API keys and compute resources from connected nodes.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--gap-sm)', justifyContent: 'flex-end' }}>
+                <CyberButton onClick={() => {
+                  setShowFlowModal(false);
+                  setFlowForm({ name: '', description: '' });
+                }}>
+                  CANCEL
+                </CyberButton>
+                <CyberButton
+                  variant="primary"
+                  icon={Plus}
+                  onClick={createFlow}
+                  disabled={!flowForm.name.trim()}
+                >
+                  CREATE FLOW
                 </CyberButton>
               </div>
             </div>
