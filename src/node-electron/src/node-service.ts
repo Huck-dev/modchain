@@ -583,4 +583,40 @@ export class NodeService extends EventEmitter {
   getIPFSPeerId(): string | null {
     return this.ipfsManager?.getPeerId() ?? null;
   }
+
+  // IPFS File Operations (Phase 4)
+  async ipfsAdd(filePath: string): Promise<string> {
+    if (!this.ipfsManager?.getIsRunning()) {
+      throw new Error('IPFS not running');
+    }
+    return await this.ipfsManager.add(filePath);
+  }
+
+  async ipfsAddContent(content: string, filename?: string): Promise<string> {
+    if (!this.ipfsManager?.getIsRunning()) {
+      throw new Error('IPFS not running');
+    }
+    return await this.ipfsManager.addContent(content, filename);
+  }
+
+  async ipfsGet(cid: string, outputPath: string): Promise<void> {
+    if (!this.ipfsManager?.getIsRunning()) {
+      throw new Error('IPFS not running');
+    }
+    await this.ipfsManager.get(cid, outputPath);
+  }
+
+  async ipfsPin(cid: string): Promise<void> {
+    if (!this.ipfsManager?.getIsRunning()) {
+      throw new Error('IPFS not running');
+    }
+    await this.ipfsManager.pin(cid);
+  }
+
+  async ipfsUnpin(cid: string): Promise<void> {
+    if (!this.ipfsManager?.getIsRunning()) {
+      throw new Error('IPFS not running');
+    }
+    await this.ipfsManager.unpin(cid);
+  }
 }

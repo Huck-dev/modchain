@@ -44,6 +44,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ipfs-status', (_, status) => callback(status));
   },
 
+  // IPFS file operations (Phase 4)
+  ipfsAdd: (filePath: string): Promise<{ success: boolean; cid?: string; error?: string }> =>
+    ipcRenderer.invoke('ipfs-add', filePath),
+  ipfsAddContent: (content: string, filename?: string): Promise<{ success: boolean; cid?: string; error?: string }> =>
+    ipcRenderer.invoke('ipfs-add-content', content, filename),
+  ipfsGet: (cid: string, outputPath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('ipfs-get', cid, outputPath),
+  ipfsPin: (cid: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('ipfs-pin', cid),
+  ipfsUnpin: (cid: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('ipfs-unpin', cid),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window-maximize'),
