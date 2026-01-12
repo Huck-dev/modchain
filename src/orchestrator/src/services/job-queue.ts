@@ -41,11 +41,13 @@ export class JobQueue {
   /**
    * Submit a new job to the queue
    * Optionally holds funds if an account ID is provided
+   * Optionally routes to workspace nodes if workspaceId is provided
    */
-  async submitJob(clientId: string, request: CreateJobRequest, accountId?: string): Promise<Job> {
+  async submitJob(clientId: string, request: CreateJobRequest, accountId?: string, workspaceId?: string): Promise<Job> {
     const job: Job = {
       id: uuidv4(),
       client_id: clientId,
+      workspace_id: workspaceId, // Store workspace for routing
       requirements: request.requirements,
       payload: request.payload,
       status: 'pending',
@@ -279,10 +281,17 @@ export class JobQueue {
 
       const job = queued.job;
 
-      // Find a suitable node
-      const node = this.nodeManager.findNodeForJob(job.requirements);
+      // Find a suitable node (filter by workspace if specified)
+      const node = job.workspace_id
+        ? this.nodeManager.findNodeForJobInWorkspace(job.requirements, job.workspace_id)
+        : this.nodeManager.findNodeForJob(job.requirements);
+
       if (!node) {
         // No suitable node available right now
+        // Log if workspace-scoped job has no nodes
+        if (job.workspace_id) {
+          console.log(`[JobQueue] No nodes available for workspace ${job.workspace_id} job ${job.id}`);
+        }
         continue;
       }
 

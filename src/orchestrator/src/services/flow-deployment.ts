@@ -92,6 +92,7 @@ export class FlowDeploymentService {
       flowId: request.flowId,
       name: request.name,
       clientId,
+      workspaceId: request.workspaceId, // Optional workspace for routing
       status: 'pending',
       nodes: request.nodes,
       connections: request.connections,
@@ -122,8 +123,8 @@ export class FlowDeploymentService {
     deployment.status = 'deploying';
     deployment.updatedAt = new Date();
 
-    // Execute nodes in order
-    this.executeFlow(deployment, executionOrder, request.resolvedCredentials, accountId)
+    // Execute nodes in order (pass workspaceId for routing)
+    this.executeFlow(deployment, executionOrder, request.resolvedCredentials, accountId, request.workspaceId)
       .catch((error) => {
         deployment.status = 'failed';
         deployment.error = String(error);
@@ -140,7 +141,8 @@ export class FlowDeploymentService {
     deployment: FlowDeployment,
     executionOrder: string[],
     credentials: Record<string, Record<string, string>>,
-    accountId?: string
+    accountId?: string,
+    workspaceId?: string
   ): Promise<void> {
     deployment.status = 'running';
     deployment.updatedAt = new Date();
@@ -165,13 +167,14 @@ export class FlowDeploymentService {
         // Get node credentials
         const nodeCredentials = this.resolveNodeCredentials(node, credentials);
 
-        // Create job for this node
+        // Create job for this node (include workspaceId for routing)
         const jobId = await this.createNodeJob(
           deployment.clientId,
           node,
           inputs,
           nodeCredentials,
-          accountId
+          accountId,
+          workspaceId
         );
 
         deployment.nodeJobs[nodeId] = jobId;
@@ -231,7 +234,8 @@ export class FlowDeploymentService {
     node: FlowNode,
     inputs: Record<string, unknown>,
     credentials: Record<string, Record<string, string>>,
-    accountId?: string
+    accountId?: string,
+    workspaceId?: string
   ): Promise<string> {
     // Get module requirements
     const baseRequirements = MODULE_REQUIREMENTS[node.moduleId] || DEFAULT_REQUIREMENTS;
@@ -254,7 +258,8 @@ export class FlowDeploymentService {
     const job = await this.jobQueue.submitJob(
       clientId,
       { requirements, payload, timeout_seconds: 3600 },
-      accountId
+      accountId,
+      workspaceId // Pass workspaceId for routing to workspace nodes
     );
 
     return job.id;

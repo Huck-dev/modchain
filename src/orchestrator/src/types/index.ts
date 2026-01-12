@@ -125,6 +125,7 @@ export type CreateJobRequest = z.infer<typeof CreateJobRequestSchema>;
 export interface Job {
   id: string;
   client_id: string;
+  workspace_id?: string; // Optional workspace for routing to workspace nodes
   requirements: JobRequirements;
   payload: JobPayload;
   status: JobStatus;
@@ -241,6 +242,7 @@ export const FlowConnectionSchema = z.object({
 export const DeployFlowRequestSchema = z.object({
   flowId: z.string(),
   name: z.string(),
+  workspaceId: z.string().optional(), // Optional workspace for routing to workspace nodes
   nodes: z.array(FlowNodeSchema),
   connections: z.array(FlowConnectionSchema),
   resolvedCredentials: z.record(z.string(), z.record(z.string(), z.string())),
@@ -271,6 +273,7 @@ export interface FlowDeployment {
   flowId: string;
   name: string;
   clientId: string;
+  workspaceId?: string; // Optional workspace for routing to workspace nodes
   status: FlowDeploymentStatus;
   nodes: FlowNode[];
   connections: FlowConnection[];

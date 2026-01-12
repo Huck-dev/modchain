@@ -744,11 +744,11 @@ app.get('/api/v1/my-nodes', requireAuth, (req, res) => {
         workspaceNames: workspaceNames.length > 0 ? workspaceNames : ['Not assigned'],
         available: node.available,
         capabilities: node.capabilities,
-        connectedAt: node.connected_at,
-        ownerId: ownerId,
+        connectedAt: node.last_heartbeat,
+        ownerId,
         isOwner: ownerId === session.userId,
         isUnclaimed: !ownerId,
-      });
+      } as any);
     }
   }
 
@@ -841,6 +841,43 @@ app.post('/api/v1/nodes/:nodeId/workspaces', requireAuth, (req, res) => {
     nodeId,
     workspaces: nodeManager.getNodeWorkspaces(nodeId),
     message: `Node assigned to ${added} workspace(s)`
+  });
+});
+
+// Add a node to a workspace using share key
+app.post('/api/v1/workspaces/:id/nodes/add-by-key', requireAuth, (req, res) => {
+  const { id: workspaceId } = req.params;
+  const { shareKey } = req.body;
+  const session = (req as any).session;
+
+  if (!shareKey || typeof shareKey !== 'string') {
+    res.status(400).json({ error: 'shareKey is required' });
+    return;
+  }
+
+  // Check user is member of workspace
+  if (!workspaceManager.isMember(workspaceId, session.userId)) {
+    res.status(403).json({ error: 'Not a member of this workspace' });
+    return;
+  }
+
+  // Try to add node by share key
+  const nodeId = nodeManager.addNodeToWorkspaceByShareKey(shareKey, workspaceId);
+
+  if (!nodeId) {
+    res.status(404).json({ error: 'Invalid share key or node is offline' });
+    return;
+  }
+
+  // Get the node details
+  const node = nodeManager.getNodeByShareKey(shareKey);
+
+  res.json({
+    success: true,
+    nodeId,
+    hostname: node?.id.split('-')[0] || 'node',
+    capabilities: node?.capabilities || {},
+    message: 'Node added to workspace',
   });
 });
 

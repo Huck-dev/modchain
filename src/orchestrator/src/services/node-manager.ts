@@ -20,6 +20,8 @@ export class NodeManager {
   private authTokens: Map<string, string> = new Map(); // token -> nodeId
   private nodeWorkspaces: Map<string, Set<string>> = new Map(); // nodeId -> workspaceIds
   private nodeOwners: Map<string, string> = new Map(); // nodeId -> userId (owner)
+  private nodeShareKeys: Map<string, string> = new Map(); // shareKey -> nodeId
+  private nodeShareKeysByNode: Map<string, string> = new Map(); // nodeId -> shareKey
 
   constructor() {
     // Start health check interval
@@ -27,20 +29,37 @@ export class NodeManager {
   }
 
   /**
-   * Register a new node and generate auth token
+   * Register a new node and generate auth token + share key
    */
   registerNode(
     walletAddress: string,
     capabilities: NodeCapabilities
-  ): { nodeId: string; authToken: string } {
+  ): { nodeId: string; authToken: string; shareKey: string } {
     const nodeId = capabilities.node_id || uuidv4();
     const authToken = uuidv4();
 
+    // Generate a short, human-readable share key (8 chars)
+    const shareKey = this.generateShareKey();
+
     this.authTokens.set(authToken, nodeId);
+    this.nodeShareKeys.set(shareKey, nodeId);
+    this.nodeShareKeysByNode.set(nodeId, shareKey);
 
-    console.log(`[NodeManager] Registered node ${nodeId} with wallet ${walletAddress}`);
+    console.log(`[NodeManager] Registered node ${nodeId} with wallet ${walletAddress}, shareKey: ${shareKey}`);
 
-    return { nodeId, authToken };
+    return { nodeId, authToken, shareKey };
+  }
+
+  /**
+   * Generate a unique share key (8 alphanumeric chars)
+   */
+  private generateShareKey(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed I, O, 1, 0 for clarity
+    let key: string;
+    do {
+      key = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    } while (this.nodeShareKeys.has(key)); // Ensure uniqueness
+    return key;
   }
 
   /**
@@ -99,16 +118,25 @@ export class NodeManager {
     message: Extract<NodeMessage, { type: 'register' }>
   ): void {
     let nodeId: string;
+    let shareKey: string;
+    let isReconnect = false;
 
     // Check if this is a returning node with auth token
     if (message.auth_token && this.authTokens.has(message.auth_token)) {
       nodeId = this.authTokens.get(message.auth_token)!;
+      shareKey = this.nodeShareKeysByNode.get(nodeId) || this.generateShareKey();
+      isReconnect = true;
       console.log(`[NodeManager] Node ${nodeId} reconnected with auth token`);
     } else {
       // New registration
       nodeId = message.capabilities.node_id || uuidv4();
+      shareKey = this.generateShareKey();
       console.log(`[NodeManager] New node registered: ${nodeId}`);
     }
+
+    // Store share key mappings
+    this.nodeShareKeys.set(shareKey, nodeId);
+    this.nodeShareKeysByNode.set(nodeId, shareKey);
 
     // Store the connected node
     const node: ConnectedNode = {
@@ -130,15 +158,17 @@ export class NodeManager {
       console.log(`[NodeManager] Node ${nodeId} joined workspaces: ${workspaceIds.join(', ')}`);
     }
 
-    // Send registration confirmation
+    // Send registration confirmation with share key
     this.send(ws, {
       type: 'registered',
       node_id: nodeId,
+      share_key: shareKey, // Node can display this for users to add to workspaces
     });
 
     console.log(
       `[NodeManager] Node ${nodeId} online: ${message.capabilities.gpus.length} GPUs, ` +
-      `${message.capabilities.cpu.cores} cores, ${message.capabilities.memory.total_mb}MB RAM`
+      `${message.capabilities.cpu.cores} cores, ${message.capabilities.memory.total_mb}MB RAM, ` +
+      `shareKey: ${shareKey}`
     );
   }
 
@@ -365,6 +395,43 @@ export class NodeManager {
   getNodeWorkspaces(nodeId: string): string[] {
     const workspaces = this.nodeWorkspaces.get(nodeId);
     return workspaces ? Array.from(workspaces) : [];
+  }
+
+  /**
+   * Get node by share key
+   */
+  getNodeByShareKey(shareKey: string): ConnectedNode | null {
+    const nodeId = this.nodeShareKeys.get(shareKey.toUpperCase());
+    if (!nodeId) return null;
+    return this.nodes.get(nodeId) || null;
+  }
+
+  /**
+   * Get share key for a node
+   */
+  getNodeShareKey(nodeId: string): string | null {
+    return this.nodeShareKeysByNode.get(nodeId) || null;
+  }
+
+  /**
+   * Add a node to a workspace using share key
+   * Returns the node ID if successful, null if share key not found
+   */
+  addNodeToWorkspaceByShareKey(shareKey: string, workspaceId: string): string | null {
+    const nodeId = this.nodeShareKeys.get(shareKey.toUpperCase());
+    if (!nodeId) return null;
+
+    // Check if node is still connected
+    const node = this.nodes.get(nodeId);
+    if (!node) return null;
+
+    if (!this.nodeWorkspaces.has(nodeId)) {
+      this.nodeWorkspaces.set(nodeId, new Set());
+    }
+    this.nodeWorkspaces.get(nodeId)!.add(workspaceId);
+    console.log(`[NodeManager] Node ${nodeId} joined workspace ${workspaceId} via share key`);
+
+    return nodeId;
   }
 
   /**
