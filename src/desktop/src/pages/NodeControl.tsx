@@ -67,6 +67,19 @@ interface ResourceAllocation {
   gpuVramPercent: number[];
 }
 
+interface ConnectedNode {
+  id: string;
+  workspaceIds: string[];
+  workspaceNames: string[];
+  available: boolean;
+  capabilities: {
+    cpu: { model: string; cores: number; threads: number };
+    memory: { total_mb: number; available_mb: number };
+    gpus: Array<{ vendor: string; model: string; vram_mb: number }>;
+    storage: { total_gb: number; available_gb: number };
+  };
+}
+
 export function NodeControl() {
   const [nodeState, setNodeState] = useState<NodeState>({
     running: false,
@@ -98,6 +111,10 @@ export function NodeControl() {
   // Workspace state
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspaces, setSelectedWorkspaces] = useState<string[]>([]);
+
+  // Connected nodes state (all nodes visible to user across workspaces)
+  const [connectedNodes, setConnectedNodes] = useState<ConnectedNode[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -159,8 +176,30 @@ export function NodeControl() {
         const data = await res.json();
 
         if (data.nodes && data.nodes.length > 0) {
-          // Use the first connected node's hardware info
-          const node = data.nodes[0];
+          // Store all connected nodes
+          const nodes: ConnectedNode[] = data.nodes.map((node: any) => ({
+            id: node.id,
+            workspaceIds: node.workspaceIds || [],
+            workspaceNames: node.workspaceNames || ['Not assigned'],
+            available: node.available,
+            capabilities: {
+              cpu: node.capabilities?.cpu || { model: 'Unknown', cores: 0, threads: 0 },
+              memory: node.capabilities?.memory || { total_mb: 0, available_mb: 0 },
+              gpus: node.capabilities?.gpus || [],
+              storage: node.capabilities?.storage || { total_gb: 0, available_gb: 0 },
+            },
+          }));
+
+          setConnectedNodes(nodes);
+
+          // Select first node if none selected
+          const nodeToSelect = selectedNodeId && nodes.find(n => n.id === selectedNodeId)
+            ? selectedNodeId
+            : nodes[0].id;
+          setSelectedNodeId(nodeToSelect);
+
+          // Use the selected node's hardware info for the detail view
+          const node = nodes.find(n => n.id === nodeToSelect) || nodes[0];
           const caps = node.capabilities;
 
           const hwInfo: HardwareInfo = {
@@ -168,7 +207,6 @@ export function NodeControl() {
               model: caps.cpu?.model || 'Unknown',
               cores: caps.cpu?.cores || 0,
               threads: caps.cpu?.threads || 0,
-              frequency_mhz: caps.cpu?.frequency_mhz,
             },
             memory: {
               total_mb: caps.memory?.total_mb || 0,
@@ -184,7 +222,7 @@ export function NodeControl() {
               total_gb: caps.storage?.total_gb || 0,
               available_gb: caps.storage?.available_gb || 0,
             },
-            docker_version: caps.docker_version || null,
+            docker_version: null,
             node_version: node.id,
           };
 
@@ -206,18 +244,10 @@ export function NodeControl() {
             gpuVramPercent: hwInfo.gpus.map(() => 80),
           });
 
-          addLog(`Node detected: ${node.id} (${node.workspaceName})`, 'success');
-          addLog(`CPU: ${hwInfo.cpu.model} (${hwInfo.cpu.cores} cores)`, 'info');
-          addLog(`RAM: ${(hwInfo.memory.total_mb / 1024).toFixed(1)} GB`, 'info');
-          if (hwInfo.gpus.length > 0) {
-            hwInfo.gpus.forEach((gpu) => {
-              addLog(`GPU: ${gpu.model} (${(gpu.vram_mb / 1024).toFixed(0)} GB VRAM)`, 'info');
-            });
-          }
-
-          if (data.nodes.length > 1) {
-            addLog(`${data.nodes.length - 1} additional node(s) connected`, 'info');
-          }
+          addLog(`Found ${nodes.length} node(s) in your workspaces`, 'success');
+          nodes.forEach((n) => {
+            addLog(`  - ${n.id.slice(0, 12)}... (${n.workspaceNames.join(', ')})`, 'info');
+          });
         } else {
           throw new Error('No connected nodes found');
         }
@@ -226,6 +256,8 @@ export function NodeControl() {
       }
     } catch (err) {
       // No connected nodes - show prompt to install/start node
+      setConnectedNodes([]);
+      setSelectedNodeId(null);
       setHealthStatus(prev => ({ ...prev, hardware: 'not_detected', node: 'not_installed' }));
       setIsNativeNode(false);
       setNodeState(prev => ({ ...prev, running: false, connected: false, nodeId: null }));
@@ -247,7 +279,7 @@ export function NodeControl() {
     } finally {
       setDetectingHardware(false);
     }
-  }, [addLog]);
+  }, [addLog, selectedNodeId]);
 
   useEffect(() => {
     loadWorkspaces();
@@ -556,6 +588,95 @@ export function NodeControl() {
           </div>
         </div>
       </div>
+
+      {/* Connected Nodes List */}
+      {connectedNodes.length > 0 && (
+        <div className="cyber-card" style={{ marginBottom: 'var(--gap-lg)' }}>
+          <div className="cyber-card-header">
+            <span className="cyber-card-title">
+              <Users size={14} style={{ marginRight: '0.5rem' }} />
+              CONNECTED NODES ({connectedNodes.length})
+            </span>
+            <CyberButton icon={RefreshCw} onClick={detectHardware} loading={detectingHardware}>
+              REFRESH
+            </CyberButton>
+          </div>
+          <div className="cyber-card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--gap-md)' }}>
+              {connectedNodes.map((node) => (
+                <div
+                  key={node.id}
+                  onClick={() => {
+                    setSelectedNodeId(node.id);
+                    setNodeState(prev => ({ ...prev, nodeId: node.id }));
+                    // Update hardware display for selected node
+                    const caps = node.capabilities;
+                    setHardware({
+                      cpu: { model: caps.cpu.model, cores: caps.cpu.cores, threads: caps.cpu.threads },
+                      memory: { total_mb: caps.memory.total_mb, available_mb: caps.memory.available_mb },
+                      gpus: caps.gpus.map(g => ({ vendor: g.vendor, model: g.model, vram_mb: g.vram_mb, driver_version: 'N/A' })),
+                      storage: { total_gb: caps.storage.total_gb, available_gb: caps.storage.available_gb },
+                      docker_version: null,
+                      node_version: node.id,
+                    });
+                    setAllocation({
+                      cpuCores: Math.max(1, Math.floor(caps.cpu.cores / 2)),
+                      ramPercent: 50,
+                      storageGb: Math.min(100, Math.floor(caps.storage.available_gb / 2)),
+                      gpuVramPercent: caps.gpus.map(() => 80),
+                    });
+                  }}
+                  style={{
+                    padding: 'var(--gap-md)',
+                    background: selectedNodeId === node.id
+                      ? 'linear-gradient(135deg, rgba(0, 255, 65, 0.15), rgba(0, 255, 255, 0.05))'
+                      : 'var(--bg-elevated)',
+                    border: `1px solid ${selectedNodeId === node.id ? 'var(--success)' : 'var(--border-subtle)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)', marginBottom: 'var(--gap-sm)' }}>
+                    <div style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: node.available ? 'var(--success)' : 'var(--warning)',
+                      boxShadow: node.available ? '0 0 8px var(--success)' : 'none',
+                    }} />
+                    <span style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.8rem',
+                      color: selectedNodeId === node.id ? 'var(--success)' : 'var(--text-primary)',
+                    }}>
+                      {node.id.slice(0, 16)}...
+                    </span>
+                    {selectedNodeId === node.id && (
+                      <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--success)', textTransform: 'uppercase' }}>
+                        Selected
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    {node.capabilities.cpu.model.slice(0, 30)}{node.capabilities.cpu.model.length > 30 ? '...' : ''}
+                  </div>
+                  <div style={{ display: 'flex', gap: 'var(--gap-md)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    <span><Cpu size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />{node.capabilities.cpu.cores}c</span>
+                    <span><HardDrive size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />{Math.round(node.capabilities.memory.total_mb / 1024)}GB</span>
+                    {node.capabilities.gpus.length > 0 && (
+                      <span><Zap size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />{node.capabilities.gpus.length} GPU</span>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 'var(--gap-sm)', fontSize: '0.7rem', color: 'var(--primary)' }}>
+                    {node.workspaceNames.join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Download / Install Section */}
       {healthStatus.node === 'not_installed' && (

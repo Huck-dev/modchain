@@ -476,23 +476,51 @@ app.get('/api/v1/nodes', requireAuth, (req, res) => {
   res.json({ nodes });
 });
 
-// Get all connected nodes (for detecting local node from web app)
-// No auth required - allows hardware detection before login
-app.get('/api/v1/my-nodes', (req, res) => {
-  // Return ALL connected nodes for hardware detection
-  // This allows the web app to detect nodes even before workspace association
+// Get nodes visible to the current user (nodes in their workspaces)
+app.get('/api/v1/my-nodes', requireAuth, (req, res) => {
+  const session = (req as any).session;
+
+  // Get all workspaces the user is a member of
+  const userWorkspaces = workspaceManager.getUserWorkspaces(session.userId);
+  const userWorkspaceIds = new Set(userWorkspaces.map(ws => ws.id));
+
+  // Get all connected nodes
   const allNodes = nodeManager.getNodes();
 
-  const nodes = allNodes.map((node) => ({
-    id: node.id,
-    workspaceId: null,
-    workspaceName: 'Not assigned',
-    available: node.available,
-    capabilities: node.capabilities,
-    connectedAt: node.connected_at,
-  }));
+  // Filter to only nodes in the user's workspaces
+  const visibleNodes: Array<{
+    id: string;
+    workspaceIds: string[];
+    workspaceNames: string[];
+    available: boolean;
+    capabilities: any;
+    connectedAt: any;
+  }> = [];
 
-  res.json({ nodes });
+  for (const node of allNodes) {
+    const nodeWorkspaceIds = nodeManager.getNodeWorkspaces(node.id);
+    const sharedWorkspaces = nodeWorkspaceIds.filter(wsId => userWorkspaceIds.has(wsId));
+
+    // Only include nodes that share at least one workspace with the user
+    // OR nodes that have no workspace assigned (for initial setup)
+    if (sharedWorkspaces.length > 0 || nodeWorkspaceIds.length === 0) {
+      const workspaceNames = sharedWorkspaces.map(wsId => {
+        const ws = userWorkspaces.find(w => w.id === wsId);
+        return ws?.name || 'Unknown';
+      });
+
+      visibleNodes.push({
+        id: node.id,
+        workspaceIds: sharedWorkspaces,
+        workspaceNames: workspaceNames.length > 0 ? workspaceNames : ['Not assigned'],
+        available: node.available,
+        capabilities: node.capabilities,
+        connectedAt: node.connected_at,
+      });
+    }
+  }
+
+  res.json({ nodes: visibleNodes });
 });
 
 // Assign a node to workspaces
