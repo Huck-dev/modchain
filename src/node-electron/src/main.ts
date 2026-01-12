@@ -243,6 +243,38 @@ app.whenReady().then(async () => {
     return nodeService?.getHardware() ?? await HardwareDetector.detect();
   });
 
+  // Window controls
+  ipcMain.handle('window-minimize', () => {
+    mainWindow?.minimize();
+  });
+
+  ipcMain.handle('window-maximize', () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow?.maximize();
+    }
+  });
+
+  ipcMain.handle('window-close', () => {
+    mainWindow?.close();
+  });
+
+  // Remote control opt-in
+  ipcMain.handle('get-remote-control', () => {
+    return nodeService?.getRemoteControlEnabled() ?? false;
+  });
+
+  ipcMain.handle('set-remote-control', (_, enabled: boolean) => {
+    if (!nodeService) return { success: false, error: 'Node service not initialized' };
+    try {
+      nodeService.setRemoteControlEnabled(enabled);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();

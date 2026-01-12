@@ -118,6 +118,49 @@
 
     .loading { text-align: center; color: #606070; padding: 20px; }
 
+    /* Window Controls */
+    .window-controls {
+      display: flex;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    .window-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.05);
+      color: #808090;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .window-btn:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    .window-btn.close:hover {
+      background: rgba(255,0,0,0.6);
+      color: #fff;
+    }
+    .title-bar {
+      -webkit-app-region: drag;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #08080c;
+      margin: -20px -20px 16px -20px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .title-bar-title {
+      font-size: 0.85rem;
+      color: #606070;
+      font-weight: 500;
+    }
+
     .share-key-box {
       display: none;
       background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(255,0,255,0.1));
@@ -234,9 +277,73 @@
     .limits-saved {
       background: linear-gradient(135deg, #00ff41, #00aa2a) !important;
     }
+
+    /* Toggle Switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-info {
+      flex: 1;
+    }
+    .toggle-label {
+      font-size: 0.9rem;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .toggle-desc {
+      font-size: 0.75rem;
+      color: #606070;
+    }
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: #1a1a25;
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-switch.active {
+      background: linear-gradient(135deg, #00d4ff, #00a0c0);
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle-switch.active::after {
+      transform: translateX(22px);
+    }
   </style>
 </head>
 <body>
+  <!-- Custom Title Bar with Window Controls -->
+  <div class="title-bar">
+    <div class="title-bar-title">OtherThing Node</div>
+    <div class="window-controls">
+      <button id="min-btn" class="window-btn" title="Minimize">
+        <svg width="12" height="12" viewBox="0 0 12 12"><rect y="5" width="12" height="2" fill="currentColor"/></svg>
+      </button>
+      <button id="max-btn" class="window-btn" title="Maximize">
+        <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+      </button>
+      <button id="close-btn" class="window-btn close" title="Close">
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+    </div>
+  </div>
+
   <div class="header">
     <div class="title">OtherThing Node</div>
     <div class="status">
@@ -288,6 +395,17 @@
     <div id="share-key-value" class="share-key-value">--------</div>
     <div class="share-key-hint">Enter this key in a workspace to add this node</div>
     <button id="copy-key-btn" class="btn-copy">Copy to Clipboard</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Settings</div>
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <div class="toggle-label">Remote Control</div>
+        <div class="toggle-desc">Allow workspace admins to manage this node from the dashboard</div>
+      </div>
+      <div id="remote-toggle" class="toggle-switch"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -547,6 +665,49 @@
           gpuSlider.value = limits.gpuVramPercent[0];
         }
         updateSliderDisplays();
+      });
+
+      // Window Controls
+      document.getElementById('min-btn').addEventListener('click', () => {
+        window.electronAPI.minimizeWindow();
+      });
+      document.getElementById('max-btn').addEventListener('click', () => {
+        window.electronAPI.maximizeWindow();
+      });
+      document.getElementById('close-btn').addEventListener('click', () => {
+        window.electronAPI.closeWindow();
+      });
+
+      // Remote Control Toggle
+      const remoteToggle = document.getElementById('remote-toggle');
+
+      // Load initial state
+      window.electronAPI.getRemoteControlEnabled().then(enabled => {
+        if (enabled) {
+          remoteToggle.classList.add('active');
+        }
+      });
+
+      remoteToggle.addEventListener('click', async () => {
+        const isActive = remoteToggle.classList.contains('active');
+        const newState = !isActive;
+
+        try {
+          const result = await window.electronAPI.setRemoteControlEnabled(newState);
+          if (result.success) {
+            if (newState) {
+              remoteToggle.classList.add('active');
+              addLog('Remote control enabled', 'success');
+            } else {
+              remoteToggle.classList.remove('active');
+              addLog('Remote control disabled', 'info');
+            }
+          } else {
+            addLog('Failed to update remote control: ' + result.error, 'error');
+          }
+        } catch (err) {
+          addLog('Error updating remote control: ' + err, 'error');
+        }
       });
     }
   </script>

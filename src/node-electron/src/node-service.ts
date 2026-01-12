@@ -19,6 +19,7 @@ interface NodeConfig {
   shareKey: string;
   nodeId: string;
   resourceLimits: ResourceLimits;
+  remoteControlEnabled: boolean;
 }
 
 interface Job {
@@ -54,6 +55,7 @@ export class NodeService extends EventEmitter {
   private hardware: HardwareInfo | null = null;
   private currentJobs: Map<string, Job> = new Map();
   private resourceLimits: ResourceLimits = {};
+  private remoteControlEnabled = false;
   private configPath: string;
 
   constructor(defaultOrchestratorUrl: string) {
@@ -66,6 +68,7 @@ export class NodeService extends EventEmitter {
     this.shareKey = config.shareKey;
     this.nodeId = config.nodeId;
     this.resourceLimits = config.resourceLimits;
+    this.remoteControlEnabled = config.remoteControlEnabled;
   }
 
   private loadOrCreateConfig(): NodeConfig {
@@ -78,6 +81,7 @@ export class NodeService extends EventEmitter {
           shareKey: config.shareKey || generateShareKey(),
           nodeId: config.nodeId || `node-${Math.random().toString(36).slice(2, 10)}`,
           resourceLimits: config.resourceLimits || {},
+          remoteControlEnabled: config.remoteControlEnabled ?? false,
         };
       }
     } catch (err) {
@@ -89,6 +93,7 @@ export class NodeService extends EventEmitter {
       shareKey: generateShareKey(),
       nodeId: `node-${Math.random().toString(36).slice(2, 10)}`,
       resourceLimits: {},
+      remoteControlEnabled: false,
     };
     this.saveConfig(config);
     return config;
@@ -100,6 +105,7 @@ export class NodeService extends EventEmitter {
         shareKey: this.shareKey,
         nodeId: this.nodeId,
         resourceLimits: this.resourceLimits,
+        remoteControlEnabled: this.remoteControlEnabled,
       };
       fs.writeFileSync(this.configPath, JSON.stringify(toSave, null, 2));
     } catch (err) {
@@ -411,5 +417,16 @@ export class NodeService extends EventEmitter {
 
   getWorkspaceIds(): string[] {
     return this.workspaceIds;
+  }
+
+  getRemoteControlEnabled(): boolean {
+    return this.remoteControlEnabled;
+  }
+
+  setRemoteControlEnabled(enabled: boolean): void {
+    this.remoteControlEnabled = enabled;
+    this.saveConfig();
+    this.log(`Remote control ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    this.emit('statusChange');
   }
 }

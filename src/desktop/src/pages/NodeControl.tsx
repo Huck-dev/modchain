@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal, Users, Download, Activity, CheckCircle, XCircle, AlertTriangle, Monitor, Apple, Box } from 'lucide-react';
+import { Power, Cpu, HardDrive, Zap, RefreshCw, Terminal, Users, Download, Activity, CheckCircle, XCircle, AlertTriangle, Monitor, Box } from 'lucide-react';
 import { CyberButton, ActivityLog } from '../components';
 import { authFetch } from '../App';
 
@@ -792,44 +792,6 @@ export function NodeControl() {
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     .exe installer
-                  </div>
-                </div>
-                <Download size={16} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
-              </a>
-
-              {/* macOS */}
-              <a
-                href="/downloads/OtherThing-Node.dmg"
-                download
-                style={{
-                  flex: '1 1 200px',
-                  padding: 'var(--gap-md)',
-                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: 'var(--radius-md)',
-                  textDecoration: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--gap-md)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)';
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08))';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))';
-                }}
-              >
-                <Apple size={32} style={{ color: '#ffffff' }} />
-                <div>
-                  <div style={{ fontFamily: 'var(--font-display)', color: '#ffffff', marginBottom: '2px' }}>
-                    macOS
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    .dmg installer
                   </div>
                 </div>
                 <Download size={16} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
