@@ -275,6 +275,11 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Open dashboard in browser
+  ipcMain.handle('open-dashboard', () => {
+    shell.openExternal('http://155.117.46.228');
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();

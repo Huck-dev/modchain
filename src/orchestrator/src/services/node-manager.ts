@@ -154,6 +154,9 @@ export class NodeManager {
       gpuVramPercent?: number[];
     } | undefined;
 
+    // Extract remote control setting
+    const remoteControlEnabled = (message as any).remote_control_enabled as boolean | undefined;
+
     // Store the connected node
     const node: ConnectedNode = {
       id: nodeId,
@@ -164,6 +167,7 @@ export class NodeManager {
       last_heartbeat: new Date(),
       reputation: 50, // Start with neutral reputation
       resourceLimits,
+      remoteControlEnabled: remoteControlEnabled ?? false,
     };
 
     this.nodes.set(nodeId, node);
@@ -198,6 +202,11 @@ export class NodeManager {
       node.available = message.available;
       node.current_jobs = message.current_jobs;
       node.last_heartbeat = new Date();
+      // Update remote control setting if provided
+      const remoteControlEnabled = (message as any).remote_control_enabled;
+      if (typeof remoteControlEnabled === 'boolean') {
+        node.remoteControlEnabled = remoteControlEnabled;
+      }
     }
   }
 

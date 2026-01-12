@@ -205,6 +205,7 @@ export interface ConnectedNode {
   last_heartbeat: Date;
   reputation: number;
   resourceLimits?: ResourceLimits;
+  remoteControlEnabled?: boolean;
 }
 
 // ============ Registration ============

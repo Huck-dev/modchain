@@ -59,6 +59,7 @@ interface WorkspaceNode {
     gpus?: Array<{ model: string; vramMb: number }>;
   };
   resourceLimits?: ResourceLimits | null;
+  remoteControlEnabled?: boolean;
   reputation?: number;
 }
 
@@ -1147,20 +1148,34 @@ Members: ${workspace?.members.length || 0}`
                           {node.hostname}
                         </span>
                       </div>
-                      <span style={{
-                        fontSize: '0.7rem',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        background: node.status === 'online' ? 'rgba(100, 255, 100, 0.2)' :
-                                   node.status === 'busy' ? 'rgba(255, 200, 100, 0.2)' :
-                                   'rgba(255, 100, 100, 0.2)',
-                        color: node.status === 'online' ? 'var(--success)' :
-                               node.status === 'busy' ? 'var(--warning)' :
-                               'var(--error)',
-                        textTransform: 'uppercase',
-                      }}>
-                        {node.status}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
+                        {node.remoteControlEnabled && (
+                          <span style={{
+                            fontSize: '0.65rem',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: 'rgba(255, 0, 255, 0.1)',
+                            border: '1px solid rgba(255, 0, 255, 0.3)',
+                            color: 'var(--accent)',
+                          }}>
+                            Remote
+                          </span>
+                        )}
+                        <span style={{
+                          fontSize: '0.7rem',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: node.status === 'online' ? 'rgba(100, 255, 100, 0.2)' :
+                                     node.status === 'busy' ? 'rgba(255, 200, 100, 0.2)' :
+                                     'rgba(255, 100, 100, 0.2)',
+                          color: node.status === 'online' ? 'var(--success)' :
+                                 node.status === 'busy' ? 'var(--warning)' :
+                                 'var(--error)',
+                          textTransform: 'uppercase',
+                        }}>
+                          {node.status}
+                        </span>
+                      </div>
                     </div>
                     {/* Hardware specs */}
                     <div style={{ display: 'flex', gap: 'var(--gap-lg)', marginBottom: 'var(--gap-sm)' }}>
@@ -1202,8 +1217,8 @@ Members: ${workspace?.members.length || 0}`
                       </div>
                     )}
 
-                    {/* Resource Limits */}
-                    {node.resourceLimits && (
+                    {/* Resource Limits - only show if remote control enabled */}
+                    {node.remoteControlEnabled && node.resourceLimits && (
                       Object.keys(node.resourceLimits).some(k => (node.resourceLimits as any)[k] !== undefined)
                     ) && (
                       <div style={{

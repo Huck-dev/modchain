@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRemoteControlEnabled: () => ipcRenderer.invoke('get-remote-control'),
   setRemoteControlEnabled: (enabled: boolean) => ipcRenderer.invoke('set-remote-control', enabled),
 
+  // Dashboard
+  openDashboard: () => ipcRenderer.invoke('open-dashboard'),
+
   onNodeStatus: (callback: (status: any) => void) => {
     ipcRenderer.on('node-status', (_, status) => callback(status));
   },

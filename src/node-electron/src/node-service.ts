@@ -191,7 +191,8 @@ export class NodeService extends EventEmitter {
             mcp_adapters: [],
           },
           workspace_ids: this.workspaceIds,
-          resource_limits: this.resourceLimits, // Send configured resource limits
+          resource_limits: this.resourceLimits,
+          remote_control_enabled: this.remoteControlEnabled,
         };
 
         this.ws?.send(JSON.stringify(registerMsg));
@@ -204,6 +205,7 @@ export class NodeService extends EventEmitter {
               type: 'heartbeat',
               available: true,
               current_jobs: this.currentJobs.size,
+              remote_control_enabled: this.remoteControlEnabled,
             }));
           }
         }, 15000); // Every 15 seconds

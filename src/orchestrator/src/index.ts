@@ -361,6 +361,7 @@ app.get('/api/v1/workspaces/:id/nodes', requireAuth, (req, res) => {
         })),
       },
       resourceLimits: n.resourceLimits || null,
+      remoteControlEnabled: n.remoteControlEnabled ?? false,
       reputation: n.reputation,
     })),
   });
