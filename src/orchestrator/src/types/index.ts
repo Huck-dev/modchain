@@ -178,13 +178,32 @@ export const NodeMessageSchema = z.discriminatedUnion('type', [
       actual_cost_cents: z.number(),
     }),
   }),
+  z.object({
+    type: z.literal('ipfs_ready'),
+    peer_id: z.string(),
+    addresses: z.array(z.string()),
+  }),
 ]);
 
 export type NodeMessage = z.infer<typeof NodeMessageSchema>;
 
 export interface OrchestratorMessage {
-  type: 'registered' | 'job_assignment' | 'cancel_job' | 'config_update' | 'error';
+  type: 'registered' | 'job_assignment' | 'cancel_job' | 'config_update' | 'error' | 'workspace_joined';
   [key: string]: unknown;
+}
+
+// IPFS message types
+export interface WorkspaceJoinedMessage extends OrchestratorMessage {
+  type: 'workspace_joined';
+  workspace_id: string;
+  ipfs_swarm_key: string;
+  bootstrap_peers: string[];
+}
+
+export interface IPFSReadyMessage {
+  type: 'ipfs_ready';
+  peer_id: string;
+  addresses: string[];
 }
 
 // ============ Connected Node ============
@@ -206,6 +225,10 @@ export interface ConnectedNode {
   reputation: number;
   resourceLimits?: ResourceLimits;
   remoteControlEnabled?: boolean;
+  // IPFS integration
+  ipfsPeerId?: string;
+  ipfsAddresses?: string[];
+  ipfsReady?: boolean;
 }
 
 // ============ Registration ============

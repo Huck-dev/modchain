@@ -13,7 +13,10 @@ import {
   OrchestratorMessage,
   Job,
   JobRequirements,
+  IPFSReadyMessage,
+  WorkspaceJoinedMessage,
 } from '../types/index.js';
+import type { WorkspaceManager } from './workspace-manager.js';
 
 export class NodeManager {
   private nodes: Map<string, ConnectedNode> = new Map();
@@ -22,10 +25,18 @@ export class NodeManager {
   private nodeOwners: Map<string, string> = new Map(); // nodeId -> userId (owner)
   private nodeShareKeys: Map<string, string> = new Map(); // shareKey -> nodeId
   private nodeShareKeysByNode: Map<string, string> = new Map(); // nodeId -> shareKey
+  private workspaceManager: WorkspaceManager | null = null;
 
   constructor() {
     // Start health check interval
     setInterval(() => this.healthCheck(), 30000);
+  }
+
+  /**
+   * Set the workspace manager reference (called after both are initialized)
+   */
+  setWorkspaceManager(wm: WorkspaceManager): void {
+    this.workspaceManager = wm;
   }
 
   /**
@@ -108,9 +119,27 @@ export class NodeManager {
         this.handleJobResult(ws, message);
         break;
 
+      case 'ipfs_ready':
+        this.handleIPFSReady(ws, message as unknown as IPFSReadyMessage);
+        break;
+
       default:
         console.warn('[NodeManager] Unknown message type');
     }
+  }
+
+  /**
+   * Handle IPFS ready message from node
+   */
+  private handleIPFSReady(ws: WebSocket, message: IPFSReadyMessage): void {
+    const node = this.findNodeByWs(ws);
+    if (!node) return;
+
+    node.ipfsPeerId = message.peer_id;
+    node.ipfsAddresses = message.addresses;
+    node.ipfsReady = true;
+
+    console.log(`[NodeManager] Node ${node.id} IPFS ready: ${message.peer_id}, ${message.addresses.length} addresses`);
   }
 
   private handleRegister(
@@ -462,7 +491,57 @@ export class NodeManager {
     this.nodeWorkspaces.get(nodeId)!.add(workspaceId);
     console.log(`[NodeManager] Node ${nodeId} joined workspace ${workspaceId} via share key`);
 
+    // Send workspace_joined message with IPFS info
+    this.sendWorkspaceJoinedMessage(nodeId, workspaceId);
+
     return nodeId;
+  }
+
+  /**
+   * Send workspace_joined message to a node with IPFS swarm key and bootstrap peers
+   */
+  private sendWorkspaceJoinedMessage(nodeId: string, workspaceId: string): void {
+    const node = this.nodes.get(nodeId);
+    if (!node || !this.workspaceManager) return;
+
+    const ipfsInfo = this.workspaceManager.getWorkspaceIPFSInfo(workspaceId);
+    if (!ipfsInfo) return;
+
+    const bootstrapPeers = this.getBootstrapPeers(workspaceId, nodeId);
+
+    const message: WorkspaceJoinedMessage = {
+      type: 'workspace_joined',
+      workspace_id: workspaceId,
+      ipfs_swarm_key: ipfsInfo.swarmKey,
+      bootstrap_peers: bootstrapPeers,
+    };
+
+    this.send(node.ws, message);
+    console.log(`[NodeManager] Sent workspace_joined to node ${nodeId} for workspace ${workspaceId} with ${bootstrapPeers.length} bootstrap peers`);
+  }
+
+  /**
+   * Get IPFS bootstrap peers for a workspace (other nodes' IPFS addresses)
+   */
+  getBootstrapPeers(workspaceId: string, excludeNodeId?: string): string[] {
+    const peers: string[] = [];
+
+    for (const [nodeId, workspaceIds] of this.nodeWorkspaces) {
+      if (workspaceIds.has(workspaceId) && nodeId !== excludeNodeId) {
+        const node = this.nodes.get(nodeId);
+        if (node?.ipfsReady && node.ipfsPeerId && node.ipfsAddresses) {
+          // Include addresses with peer ID appended
+          for (const addr of node.ipfsAddresses) {
+            // Only include routable addresses (not localhost)
+            if (!addr.includes('/127.0.0.1/') && !addr.includes('/::1/')) {
+              peers.push(`${addr}/p2p/${node.ipfsPeerId}`);
+            }
+          }
+        }
+      }
+    }
+
+    return peers;
   }
 
   /**

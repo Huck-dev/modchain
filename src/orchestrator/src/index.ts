@@ -45,6 +45,9 @@ const jobQueue = new JobQueue(nodeManager, paymentService);
 const flowDeploymentService = new FlowDeploymentService(jobQueue, paymentService);
 const workspaceManager = new WorkspaceManager();
 
+// Wire up cross-references for IPFS integration
+nodeManager.setWorkspaceManager(workspaceManager);
+
 // ============ Express App ============
 
 const app = express();

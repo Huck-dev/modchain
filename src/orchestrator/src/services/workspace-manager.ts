@@ -6,6 +6,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
 import path from 'path';
 
 export interface WorkspaceMember {
@@ -67,6 +68,8 @@ export interface Workspace {
   flows: WorkspaceFlow[];
   resourceUsage: WorkspaceResourceUsage;
   createdAt: string;
+  // IPFS integration - swarm key for private network isolation
+  ipfsSwarmKey?: string;
 }
 
 interface WorkspaceStore {
@@ -122,6 +125,15 @@ export class WorkspaceManager {
   }
 
   /**
+   * Generate a unique IPFS swarm key (32 bytes hex)
+   * This key is used to create a private IPFS network for the workspace
+   */
+  private generateSwarmKey(): string {
+    // Generate 32 random bytes and convert to hex (64 chars)
+    return randomBytes(32).toString('hex');
+  }
+
+  /**
    * Create a new workspace
    */
   createWorkspace(
@@ -133,6 +145,7 @@ export class WorkspaceManager {
   ): Workspace {
     const id = uuidv4();
     const inviteCode = this.generateInviteCode();
+    const ipfsSwarmKey = this.generateSwarmKey();
 
     const workspace: Workspace = {
       id,
@@ -159,13 +172,14 @@ export class WorkspaceManager {
         lastUpdated: new Date().toISOString(),
       },
       createdAt: new Date().toISOString(),
+      ipfsSwarmKey,
     };
 
     this.workspaces.set(id, workspace);
     this.inviteCodes.set(inviteCode, id);
     this.saveToDisk();
 
-    console.log(`[WorkspaceManager] Created workspace "${name}" (${id}) by ${ownerUsername}`);
+    console.log(`[WorkspaceManager] Created workspace "${name}" (${id}) by ${ownerUsername} with IPFS swarm key`);
 
     return workspace;
   }
@@ -845,5 +859,34 @@ export class WorkspaceManager {
         dailyUsage,
       },
     };
+  }
+
+  // ============ IPFS Integration ============
+
+  /**
+   * Get IPFS swarm key for a workspace (generates one if missing for existing workspaces)
+   */
+  getWorkspaceSwarmKey(workspaceId: string): string | null {
+    const workspace = this.workspaces.get(workspaceId);
+    if (!workspace) return null;
+
+    // Lazy generation for existing workspaces without swarm keys
+    if (!workspace.ipfsSwarmKey) {
+      workspace.ipfsSwarmKey = this.generateSwarmKey();
+      this.saveToDisk();
+      console.log(`[WorkspaceManager] Generated IPFS swarm key for existing workspace "${workspace.name}"`);
+    }
+
+    return workspace.ipfsSwarmKey;
+  }
+
+  /**
+   * Get IPFS info for a workspace (swarm key only - bootstrap peers come from NodeManager)
+   */
+  getWorkspaceIPFSInfo(workspaceId: string): { swarmKey: string } | null {
+    const swarmKey = this.getWorkspaceSwarmKey(workspaceId);
+    if (!swarmKey) return null;
+
+    return { swarmKey };
   }
 }
