@@ -19,6 +19,7 @@ export class NodeManager {
   private nodes: Map<string, ConnectedNode> = new Map();
   private authTokens: Map<string, string> = new Map(); // token -> nodeId
   private nodeWorkspaces: Map<string, Set<string>> = new Map(); // nodeId -> workspaceIds
+  private nodeOwners: Map<string, string> = new Map(); // nodeId -> userId (owner)
 
   constructor() {
     // Start health check interval
@@ -177,8 +178,9 @@ export class NodeManager {
     if (node) {
       console.log(`[NodeManager] Node ${node.id} disconnected`);
       this.nodes.delete(node.id);
-      // Clean up workspace mappings
+      // Clean up workspace mappings and ownership
       this.nodeWorkspaces.delete(node.id);
+      this.nodeOwners.delete(node.id);
     }
   }
 
@@ -366,6 +368,45 @@ export class NodeManager {
   }
 
   /**
+   * Claim ownership of an unowned node
+   */
+  claimNode(nodeId: string, userId: string): boolean {
+    const node = this.nodes.get(nodeId);
+    if (!node) return false;
+
+    // Check if already owned
+    if (this.nodeOwners.has(nodeId)) {
+      return false; // Already owned by someone
+    }
+
+    this.nodeOwners.set(nodeId, userId);
+    console.log(`[NodeManager] Node ${nodeId} claimed by user ${userId}`);
+    return true;
+  }
+
+  /**
+   * Get the owner of a node
+   */
+  getNodeOwner(nodeId: string): string | null {
+    return this.nodeOwners.get(nodeId) || null;
+  }
+
+  /**
+   * Check if a user owns a node
+   */
+  isNodeOwner(nodeId: string, userId: string): boolean {
+    const owner = this.nodeOwners.get(nodeId);
+    return owner === userId;
+  }
+
+  /**
+   * Check if a node is unclaimed
+   */
+  isNodeUnclaimed(nodeId: string): boolean {
+    return !this.nodeOwners.has(nodeId);
+  }
+
+  /**
    * Send a message to a specific node
    */
   sendToNode(nodeId: string, message: OrchestratorMessage): boolean {
@@ -470,6 +511,7 @@ export class NodeManager {
         node.ws.close();
         this.nodes.delete(nodeId);
         this.nodeWorkspaces.delete(nodeId);
+        this.nodeOwners.delete(nodeId);
       }
     }
   }

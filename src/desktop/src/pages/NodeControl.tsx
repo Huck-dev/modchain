@@ -78,6 +78,9 @@ interface ConnectedNode {
     gpus: Array<{ vendor: string; model: string; vram_mb: number }>;
     storage: { total_gb: number; available_gb: number };
   };
+  ownerId: string | null;
+  isOwner: boolean;
+  isUnclaimed: boolean;
 }
 
 export function NodeControl() {
@@ -188,6 +191,9 @@ export function NodeControl() {
               gpus: node.capabilities?.gpus || [],
               storage: node.capabilities?.storage || { total_gb: 0, available_gb: 0 },
             },
+            ownerId: node.ownerId || null,
+            isOwner: node.isOwner || false,
+            isUnclaimed: node.isUnclaimed || false,
           }));
 
           setConnectedNodes(nodes);
@@ -513,6 +519,36 @@ export function NodeControl() {
     }
   };
 
+  // Claim an unclaimed node
+  const claimNode = async (nodeId: string) => {
+    setLoading(true);
+    addLog('Claiming node...', 'info');
+
+    try {
+      const res = await authFetch(`/api/v1/nodes/${nodeId}/claim`, {
+        method: 'POST',
+      });
+
+      if (res.ok) {
+        addLog('Node claimed successfully! You now own this node.', 'success');
+        // Refresh to update ownership status
+        detectHardware();
+      } else {
+        const data = await res.json();
+        addLog(`Failed to claim: ${data.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      addLog(`Error claiming node: ${err}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Get the currently selected node
+  const getSelectedNode = (): ConnectedNode | null => {
+    return connectedNodes.find(n => n.id === selectedNodeId) || null;
+  };
+
   const formatMemory = (mb: number) => mb > 0 ? `${(mb / 1024).toFixed(1)} GB` : '--';
 
   const StatusIcon = ({ status }: { status: 'checking' | 'online' | 'offline' | 'not_installed' | 'stopped' | 'running' | 'error' | 'not_detected' | 'detected' | 'detecting' }) => {
@@ -670,6 +706,34 @@ export function NodeControl() {
                   </div>
                   <div style={{ marginTop: 'var(--gap-sm)', fontSize: '0.7rem', color: 'var(--primary)' }}>
                     {node.workspaceNames.join(', ')}
+                  </div>
+                  <div style={{ marginTop: 'var(--gap-sm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{
+                      fontSize: '0.65rem',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: node.isOwner ? 'rgba(0, 255, 65, 0.2)' : node.isUnclaimed ? 'rgba(255, 165, 0, 0.2)' : 'rgba(100, 100, 100, 0.2)',
+                      color: node.isOwner ? 'var(--success)' : node.isUnclaimed ? 'var(--warning)' : 'var(--text-muted)',
+                    }}>
+                      {node.isOwner ? 'YOURS' : node.isUnclaimed ? 'UNCLAIMED' : 'OWNED'}
+                    </span>
+                    {node.isUnclaimed && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); claimNode(node.id); }}
+                        style={{
+                          fontSize: '0.65rem',
+                          padding: '2px 8px',
+                          background: 'var(--primary)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          color: '#000',
+                          cursor: 'pointer',
+                          fontWeight: 'bold',
+                        }}
+                      >
+                        CLAIM
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -991,8 +1055,8 @@ export function NodeControl() {
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Resource limits are sent to the node app immediately.
               </div>
-              <CyberButton variant="primary" icon={Zap} onClick={saveResourceLimits} loading={loading} disabled={!nodeState.nodeId}>
-                APPLY LIMITS
+              <CyberButton variant="primary" icon={Zap} onClick={saveResourceLimits} loading={loading} disabled={!nodeState.nodeId || !getSelectedNode()?.isOwner}>
+                {getSelectedNode()?.isOwner ? 'APPLY LIMITS' : 'NOT YOUR NODE'}
               </CyberButton>
             </div>
           </div>
@@ -1054,8 +1118,14 @@ export function NodeControl() {
                 ✓ Selected {selectedWorkspaces.length} workspace(s)
               </div>
               {isNativeNode && nodeState.nodeId && (
-                <CyberButton variant="primary" icon={Users} onClick={assignNodeToWorkspaces} loading={loading}>
-                  ASSIGN TO WORKSPACES
+                <CyberButton
+                  variant="primary"
+                  icon={Users}
+                  onClick={assignNodeToWorkspaces}
+                  loading={loading}
+                  disabled={!getSelectedNode()?.isOwner && !getSelectedNode()?.isUnclaimed}
+                >
+                  {getSelectedNode()?.isOwner || getSelectedNode()?.isUnclaimed ? 'ASSIGN TO WORKSPACES' : 'NOT YOUR NODE'}
                 </CyberButton>
               )}
             </div>

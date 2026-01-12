@@ -509,6 +509,7 @@ app.get('/api/v1/my-nodes', requireAuth, (req, res) => {
         return ws?.name || 'Unknown';
       });
 
+      const ownerId = nodeManager.getNodeOwner(node.id);
       visibleNodes.push({
         id: node.id,
         workspaceIds: sharedWorkspaces,
@@ -516,11 +517,48 @@ app.get('/api/v1/my-nodes', requireAuth, (req, res) => {
         available: node.available,
         capabilities: node.capabilities,
         connectedAt: node.connected_at,
+        ownerId: ownerId,
+        isOwner: ownerId === session.userId,
+        isUnclaimed: !ownerId,
       });
     }
   }
 
   res.json({ nodes: visibleNodes });
+});
+
+// Claim an unclaimed node
+app.post('/api/v1/nodes/:nodeId/claim', requireAuth, (req, res) => {
+  const { nodeId } = req.params;
+  const session = (req as any).session;
+
+  // Check if node exists
+  const nodes = nodeManager.getNodes();
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node) {
+    res.status(404).json({ error: 'Node not found' });
+    return;
+  }
+
+  // Check if already claimed
+  if (!nodeManager.isNodeUnclaimed(nodeId)) {
+    res.status(403).json({ error: 'Node is already claimed by another user' });
+    return;
+  }
+
+  // Claim the node
+  const success = nodeManager.claimNode(nodeId, session.userId);
+  if (!success) {
+    res.status(500).json({ error: 'Failed to claim node' });
+    return;
+  }
+
+  res.json({
+    success: true,
+    nodeId,
+    ownerId: session.userId,
+    message: 'Node claimed successfully'
+  });
 });
 
 // Assign a node to workspaces
@@ -532,6 +570,20 @@ app.post('/api/v1/nodes/:nodeId/workspaces', requireAuth, (req, res) => {
   if (!workspaceIds || !Array.isArray(workspaceIds)) {
     res.status(400).json({ error: 'workspaceIds array is required' });
     return;
+  }
+
+  // Check ownership - must own the node or node must be unclaimed
+  const isOwner = nodeManager.isNodeOwner(nodeId, session.userId);
+  const isUnclaimed = nodeManager.isNodeUnclaimed(nodeId);
+
+  if (!isOwner && !isUnclaimed) {
+    res.status(403).json({ error: 'You do not own this node' });
+    return;
+  }
+
+  // If unclaimed, claim it for this user
+  if (isUnclaimed) {
+    nodeManager.claimNode(nodeId, session.userId);
   }
 
   // Verify user is a member of all specified workspaces
@@ -568,6 +620,13 @@ app.post('/api/v1/nodes/:nodeId/workspaces', requireAuth, (req, res) => {
 app.post('/api/v1/nodes/:nodeId/limits', requireAuth, (req, res) => {
   const { nodeId } = req.params;
   const { cpuCores, ramPercent, storageGb, gpuVramPercent } = req.body;
+  const session = (req as any).session;
+
+  // Check ownership - must own the node
+  if (!nodeManager.isNodeOwner(nodeId, session.userId)) {
+    res.status(403).json({ error: 'You do not own this node' });
+    return;
+  }
 
   const limits = {
     cpuCores: cpuCores !== undefined ? Number(cpuCores) : undefined,
