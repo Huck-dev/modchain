@@ -10,73 +10,41 @@
 - **SSH Key Passphrase**: `Leonidas12!`
 - **Sudo Password**: `bAttlezone12a!`
 - **Remote Script**: `/tmp/remote.sh` (handles SSH with expect)
-- **GitHub**: https://github.com/Huck-dev/rhizos-cloud (PUBLIC repo)
 - **Systemd Services**: `nginx`, `otherthing`
+
+## Git Repositories
+| Repo | URL | Visibility | Purpose |
+|------|-----|------------|---------|
+| rhizos-cloud | https://github.com/Huck-dev/rhizos-cloud | Public | Main repo (orchestrator, web dashboard, node source) |
+| rhizos-node | https://github.com/Huck-dev/rhizos-node | Public (temp) | Node app releases/installers |
 
 ---
 
 ## Recent Completions (This Session)
 
-### 1. Local-First Node Share Key Architecture
-- **Node app generates share key locally** (8-char alphanumeric, e.g., `AB3X7K9M`)
-- Share key persisted in `userData/node-config.json`
-- Node sends `share_key` to orchestrator during registration
-- Orchestrator accepts node's share key (no longer generates its own)
+### 1. Node App GUI Redesign
+- Complete visual overhaul with cyber aesthetic matching web dashboard
+- Status banner with orchestrator/WebSocket connection indicators
+- Prominent share key display with copy button
+- Hardware grid layout with GPU vendor badges (nvidia/amd)
+- Styled resource limit sliders
+- Settings panel with remote control toggle
+- Custom window controls (min/max/close)
 
-### 2. Workspace Share Key Input
-- Added "Add Node by Share Key" card in workspace Resources tab
-- User enters 8-char share key from node app
-- API: `POST /api/v1/workspaces/:id/nodes/add-by-key`
-- Node joins workspace and appears in nodes list
+### 2. Fixed Build Process
+- Added `copy-html` script to package.json (tsc doesn't copy HTML files)
+- Build now properly includes index.html in dist folder
 
-### 3. Resource Limit Controls in Node App
-- Added sliders for CPU cores, RAM %, Storage GB, GPU VRAM %
-- Limits saved to local config and sent to orchestrator
-- UI auto-adjusts max values based on detected hardware
-- GPU slider only shown when GPUs detected
+### 3. Workspace Display Fix
+- Node now receives workspace IDs from orchestrator registration response
+- No longer attempts unauthenticated API call to get workspaces
+- Orchestrator sends `workspace_ids` array in `registered` message
 
-### 4. Resource Limits Display in Workspace UI
-- Node cards show full GPU details (model + VRAM)
-- Resource limits displayed as styled badges when set
-- Shows: CPU cores, RAM%, Storage GB, GPU%
-
-### 5. Workspace-Integrated Flow Builder (Previous Session)
-- Workspace selector in Flow Builder header
-- Shows workspace available resources vs flow requirements
-- Uses workspace API keys for provider validation
-- Saves/deploys flows to selected workspace
-- Jobs route to workspace nodes when workspaceId specified
-
----
-
-## Current Architecture
-
-### Share Key Flow
-```
-1. Node App starts → Generates local share key (persisted)
-2. Node connects to orchestrator → Sends share_key in registration
-3. Orchestrator stores share_key → nodeId mapping
-4. User enters share key in workspace UI
-5. API looks up nodeId by share key → Adds node to workspace
-6. Node appears in workspace with capabilities + resource limits
-```
-
-### Key Files Modified This Session
-```
-src/node-electron/
-├── src/node-service.ts     # Local key generation, resource limits
-├── src/main.ts             # IPC handlers for limits
-├── src/preload.ts          # Exposed APIs
-└── src/index.html          # Resource limits UI
-
-src/orchestrator/
-├── src/types/index.ts      # ResourceLimits interface
-├── src/services/node-manager.ts  # Store limits from registration
-└── src/index.ts            # Return limits in nodes API
-
-src/desktop/
-└── src/pages/WorkspaceDetail.tsx  # Share key input, limits display
-```
+### 4. Release v1.1.0
+- Created new GitHub release on rhizos-node repo
+- Windows installer: OtherThing-Node-Setup.exe (73MB)
+- Linux AppImage: OtherThing-Node.AppImage (100MB)
+- Downloads updated on production server
 
 ---
 
@@ -88,7 +56,7 @@ src/desktop/
 │   │   └── src/pages/
 │   │       ├── WorkspaceDetail.tsx  # Workspace view (5 tabs)
 │   │       ├── FlowBuilder.tsx      # Flow builder with workspace selector
-│   │       └── NodeControl.tsx      # Node management
+│   │       └── NodeControl.tsx      # Node management, downloads
 │   │
 │   ├── orchestrator/            # Backend (Express + WebSocket)
 │   │   └── src/
@@ -99,113 +67,136 @@ src/desktop/
 │   │           └── job-queue.ts          # Job routing by workspace
 │   │
 │   ├── node-electron/           # Desktop node app (Electron)
-│   │   ├── src/node-service.ts  # Core node logic, local config
+│   │   ├── src/
+│   │   │   ├── main.ts          # Electron main process, IPC
+│   │   │   ├── preload.ts       # Exposed APIs to renderer
+│   │   │   ├── index.html       # GUI (redesigned)
+│   │   │   ├── node-service.ts  # WebSocket, job execution
+│   │   │   └── hardware.ts      # Hardware detection
+│   │   ├── package.json         # Build scripts with copy-html
 │   │   └── release/             # Built installers
 │   │
 │   └── shared/                  # Shared schemas (flows.ts)
 │
 └── workspaces.json              # Workspace data (server: /opt/rhizos-cloud/)
+
+/tmp/rhizos-node/                # Separate repo for node releases
 ```
 
 ---
 
-## Key Interfaces
+## Node App Architecture
 
-### ResourceLimits (orchestrator/types)
-```typescript
-interface ResourceLimits {
-  cpuCores?: number;
-  ramPercent?: number;
-  storageGb?: number;
-  gpuVramPercent?: number[];
-}
+### Features
+- Custom frameless window (Windows) with title bar controls
+- Hardware detection (CPU, RAM, Storage, GPUs via systeminformation)
+- Resource limit sliders (saved to local config)
+- Share key (8-char, locally generated, persistent)
+- Remote control toggle (opt-in for dashboard management)
+- WebSocket connection with auto-reconnect
+- Workspace assignment display
+
+### Build Commands
+```bash
+cd /mnt/d/modchain/src/node-electron
+
+# Windows
+npm run dist:win
+# Output: release/OtherThing-Node-Setup.exe
+
+# Linux
+npm run dist:linux
+# Output: release/OtherThing-Node.AppImage
+
+# Launch locally (Windows)
+powershell.exe -Command "Start-Process 'D:\modchain\src\node-electron\release\win-unpacked\OtherThing Node.exe'"
 ```
 
-### ConnectedNode (orchestrator/types)
-```typescript
-interface ConnectedNode {
-  id: string;
-  capabilities: NodeCapabilities;
-  ws: WebSocket;
-  available: boolean;
-  current_jobs: number;
-  last_heartbeat: Date;
-  reputation: number;
-  resourceLimits?: ResourceLimits;  // NEW
-}
-```
-
-### NodeConfig (node-electron/node-service.ts)
-```typescript
-interface NodeConfig {
-  shareKey: string;      // Locally generated, persistent
-  nodeId: string;        // Locally generated, persistent
-  resourceLimits: ResourceLimits;
-}
-```
+### Config Storage
+- Path: `%APPDATA%/otherthing-node/node-config.json` (Windows)
+- Contains: shareKey, nodeId, resourceLimits, remoteControlEnabled
 
 ---
 
-## API Endpoints
+## WebSocket Protocol
 
-### Workspaces
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/workspaces` | GET | List user's workspaces |
-| `/api/v1/workspaces/:id` | GET | Get workspace details |
-| `/api/v1/workspaces/:id/nodes` | GET | Get nodes (includes resourceLimits) |
-| `/api/v1/workspaces/:id/nodes/add-by-key` | POST | Add node by share key |
-| `/api/v1/workspaces/:id/api-keys` | GET | List API keys (masked) |
-| `/api/v1/workspaces/:id/flows` | GET/POST | List/create flows |
-
-### Node WebSocket Messages
-```typescript
-// Node → Orchestrator (registration)
+### Node → Orchestrator (Registration)
+```json
 {
-  type: 'register',
-  share_key: 'AB3X7K9M',  // Node's local share key
-  capabilities: { ... },
-  workspace_ids: [],
-  resource_limits: { cpuCores: 8, ramPercent: 50, ... }
+  "type": "register",
+  "share_key": "AB3X7K9M",
+  "capabilities": {
+    "node_id": "node-abc123",
+    "gpus": [...],
+    "cpu": { "model": "...", "cores": 64 },
+    "memory": { "total_mb": 262144 },
+    "storage": { "total_gb": 15000 }
+  },
+  "workspace_ids": [],
+  "resource_limits": { "cpuCores": 32, "ramPercent": 50 },
+  "remote_control_enabled": true
 }
+```
 
-// Orchestrator → Node (confirmation)
+### Orchestrator → Node (Confirmation)
+```json
 {
-  type: 'registered',
-  node_id: 'node-abc123',
-  share_key: 'AB3X7K9M'
+  "type": "registered",
+  "node_id": "node-abc123",
+  "share_key": "AB3X7K9M",
+  "workspace_ids": ["ws-123", "ws-456"]
+}
+```
+
+### Heartbeat (every 15s)
+```json
+{
+  "type": "heartbeat",
+  "available": true,
+  "current_jobs": 0,
+  "remote_control_enabled": true
 }
 ```
 
 ---
 
 ## Deploy Commands
-```bash
-# 1. Commit and push
-git add -A && git commit -m "message" && git push
 
-# 2. Pull on server (repo is now public)
+### Full Deployment
+```bash
+# 1. Commit changes (both repos)
+cd /mnt/d/modchain && git add -A && git commit -m "message" && git push
+cd /tmp/rhizos-node && git add -A && git commit -m "message" && git push
+
+# 2. Build installers
+cd /mnt/d/modchain/src/node-electron
+npm run dist:win
+npm run dist:linux
+
+# 3. Create GitHub release
+cd /tmp/rhizos-node
+gh release create v1.1.0 \
+  "/mnt/d/modchain/src/node-electron/release/OtherThing-Node-Setup.exe" \
+  "/mnt/d/modchain/src/node-electron/release/OtherThing-Node.AppImage" \
+  --title "v1.1.0" --notes "Release notes here"
+
+# 4. Update server
 /tmp/remote.sh "cd /opt/rhizos-cloud && echo 'bAttlezone12a!' | sudo -S git pull"
 
-# 3. Rebuild frontend
+# 5. Rebuild frontend
 /tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S rm -rf dist && echo 'bAttlezone12a!' | sudo -S pnpm build"
 
-# 4. Deploy and restart
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/assets /usr/share/nginx/html/index.html && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/ && echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
+# 6. Deploy frontend
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/assets /usr/share/nginx/html/index.html && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/"
 
-# Build Windows installer
-powershell.exe -ExecutionPolicy Bypass -Command 'cd D:\modchain\src\node-electron; $env:Path = "C:\Program Files\nodejs;" + $env:Path; npm run dist:win'
+# 7. Update downloads
+/tmp/remote.sh "cd /usr/share/nginx/html/downloads && echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node-Setup.exe 'https://github.com/Huck-dev/rhizos-node/releases/download/v1.1.0/OtherThing-Node-Setup.exe' && echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node.AppImage 'https://github.com/Huck-dev/rhizos-node/releases/download/v1.1.0/OtherThing-Node.AppImage'"
 
-# Upload to release
-gh release upload v0.1.2 "/mnt/d/modchain/src/node-electron/release/OtherThing-Node-Setup.exe" --clobber
-
-# Update installer on server
-/tmp/remote.sh "cd /usr/share/nginx/html/downloads && echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node-Setup.exe 'https://github.com/Huck-dev/rhizos-cloud/releases/download/v0.1.2/OtherThing-Node-Setup.exe'"
+# 8. Restart services
+/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
 ```
 
----
-
-## Useful Server Commands
+### Quick Commands
 ```bash
 # Check service status
 /tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl status nginx otherthing --no-pager | head -20"
@@ -219,13 +210,32 @@ gh release upload v0.1.2 "/mnt/d/modchain/src/node-electron/release/OtherThing-N
 
 ---
 
+## API Endpoints
+
+### Workspaces
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/workspaces` | GET | List user's workspaces |
+| `/api/v1/workspaces/:id` | GET | Get workspace details |
+| `/api/v1/workspaces/:id/nodes` | GET | Get nodes (includes resourceLimits) |
+| `/api/v1/workspaces/:id/nodes/add-by-key` | POST | Add node by share key |
+
+### Nodes
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/nodes` | GET | List all nodes |
+| `/api/v1/my-nodes` | GET | List nodes in user's workspaces |
+| `/api/v1/nodes/:id/limits` | POST | Update resource limits |
+
+---
+
 ## Remaining TODOs
 - [ ] HTTPS (Let's Encrypt) for production security
+- [ ] Make rhizos-node repo private again
 - [ ] Full token/cost tracking in orchestrator
 - [ ] Job execution and result streaming
 - [ ] Node reputation system based on job completion
 - [ ] Multiple GPUs resource limit support (per-GPU sliders)
-- [ ] Remote configuration opt-in for nodes
 
 ---
 
@@ -235,8 +245,6 @@ gh release upload v0.1.2 "/mnt/d/modchain/src/node-electron/release/OtherThing-N
 - GPUs: RTX 3070 (8GB), RTX 2060 SUPER (8GB)
 - Storage: 15TB+
 
-## Git Info
-- Remote: https://github.com/Huck-dev/rhizos-cloud.git
-- Branch: main
-- Release: v0.1.2 (Windows + Linux installers)
-- Latest commit: "feat: show node resource limits in workspace UI"
+## Current Release
+- **rhizos-node**: v1.1.0 (Redesigned GUI)
+- **Downloads**: http://155.117.46.228/downloads/
