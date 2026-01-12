@@ -461,7 +461,7 @@ export class NodeManager {
 
   private healthCheck(): void {
     const now = new Date();
-    const timeout = 60000; // 1 minute timeout
+    const timeout = 30000; // 30 second timeout
 
     for (const [nodeId, node] of this.nodes) {
       const timeSinceHeartbeat = now.getTime() - node.last_heartbeat.getTime();
@@ -469,6 +469,7 @@ export class NodeManager {
         console.log(`[NodeManager] Node ${nodeId} timed out, removing`);
         node.ws.close();
         this.nodes.delete(nodeId);
+        this.nodeWorkspaces.delete(nodeId);
       }
     }
   }

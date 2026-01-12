@@ -136,7 +136,7 @@ export class NodeService extends EventEmitter {
               current_jobs: this.currentJobs.size,
             }));
           }
-        }, 30000);
+        }, 15000); // Every 15 seconds
       });
 
       this.ws.on('message', async (data: WebSocket.RawData) => {
