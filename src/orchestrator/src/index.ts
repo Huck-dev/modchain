@@ -355,7 +355,12 @@ app.get('/api/v1/workspaces/:id/nodes', requireAuth, (req, res) => {
         gpuCount: n.capabilities.gpus.length,
         cpuCores: n.capabilities.cpu.cores,
         memoryMb: n.capabilities.memory.total_mb,
+        gpus: n.capabilities.gpus.map(g => ({
+          model: g.model,
+          vramMb: g.vram_mb,
+        })),
       },
+      resourceLimits: n.resourceLimits || null,
       reputation: n.reputation,
     })),
   });

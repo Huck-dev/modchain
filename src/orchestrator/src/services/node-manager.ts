@@ -146,6 +146,14 @@ export class NodeManager {
     this.nodeShareKeys.set(shareKey.toUpperCase(), nodeId);
     this.nodeShareKeysByNode.set(nodeId, shareKey.toUpperCase());
 
+    // Extract resource limits from registration message
+    const resourceLimits = (message as any).resource_limits as {
+      cpuCores?: number;
+      ramPercent?: number;
+      storageGb?: number;
+      gpuVramPercent?: number[];
+    } | undefined;
+
     // Store the connected node
     const node: ConnectedNode = {
       id: nodeId,
@@ -155,6 +163,7 @@ export class NodeManager {
       current_jobs: 0,
       last_heartbeat: new Date(),
       reputation: 50, // Start with neutral reputation
+      resourceLimits,
     };
 
     this.nodes.set(nodeId, node);

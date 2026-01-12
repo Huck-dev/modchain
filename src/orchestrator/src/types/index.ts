@@ -189,6 +189,13 @@ export interface OrchestratorMessage {
 
 // ============ Connected Node ============
 
+export interface ResourceLimits {
+  cpuCores?: number;
+  ramPercent?: number;
+  storageGb?: number;
+  gpuVramPercent?: number[];
+}
+
 export interface ConnectedNode {
   id: string;
   capabilities: NodeCapabilities;
@@ -197,6 +204,7 @@ export interface ConnectedNode {
   current_jobs: number;
   last_heartbeat: Date;
   reputation: number;
+  resourceLimits?: ResourceLimits;
 }
 
 // ============ Registration ============

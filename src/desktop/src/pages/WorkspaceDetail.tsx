@@ -41,6 +41,13 @@ interface WorkspaceMember {
   joinedAt: string;
 }
 
+interface ResourceLimits {
+  cpuCores?: number;
+  ramPercent?: number;
+  storageGb?: number;
+  gpuVramPercent?: number[];
+}
+
 interface WorkspaceNode {
   id: string;
   hostname: string;
@@ -49,7 +56,10 @@ interface WorkspaceNode {
     cpuCores: number;
     memoryMb: number;
     gpuCount: number;
+    gpus?: Array<{ model: string; vramMb: number }>;
   };
+  resourceLimits?: ResourceLimits | null;
+  reputation?: number;
 }
 
 interface Workspace {
@@ -1152,7 +1162,8 @@ Members: ${workspace?.members.length || 0}`
                         {node.status}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: 'var(--gap-lg)' }}>
+                    {/* Hardware specs */}
+                    <div style={{ display: 'flex', gap: 'var(--gap-lg)', marginBottom: 'var(--gap-sm)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Cpu size={14} style={{ color: 'var(--text-muted)' }} />
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
@@ -1174,6 +1185,92 @@ Members: ${workspace?.members.length || 0}`
                         </div>
                       )}
                     </div>
+
+                    {/* GPU Details */}
+                    {node.capabilities.gpus && node.capabilities.gpus.length > 0 && (
+                      <div style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--text-muted)',
+                        marginBottom: 'var(--gap-sm)',
+                        padding: 'var(--gap-xs) var(--gap-sm)',
+                        background: 'var(--bg-void)',
+                        borderRadius: 'var(--radius-sm)',
+                      }}>
+                        {node.capabilities.gpus.map((gpu, i) => (
+                          <div key={i}>{gpu.model} ({Math.round(gpu.vramMb / 1024)}GB)</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Resource Limits */}
+                    {node.resourceLimits && (
+                      Object.keys(node.resourceLimits).some(k => (node.resourceLimits as any)[k] !== undefined)
+                    ) && (
+                      <div style={{
+                        marginTop: 'var(--gap-sm)',
+                        paddingTop: 'var(--gap-sm)',
+                        borderTop: '1px solid var(--border-subtle)',
+                      }}>
+                        <div style={{
+                          fontSize: '0.65rem',
+                          color: 'var(--text-muted)',
+                          textTransform: 'uppercase',
+                          marginBottom: 'var(--gap-xs)',
+                        }}>
+                          Resource Limits
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--gap-sm)' }}>
+                          {node.resourceLimits.cpuCores && (
+                            <span style={{
+                              fontSize: '0.7rem',
+                              padding: '2px 6px',
+                              background: 'rgba(0, 212, 255, 0.1)',
+                              border: '1px solid rgba(0, 212, 255, 0.3)',
+                              borderRadius: '4px',
+                              color: 'var(--primary)',
+                            }}>
+                              CPU: {node.resourceLimits.cpuCores} cores
+                            </span>
+                          )}
+                          {node.resourceLimits.ramPercent && (
+                            <span style={{
+                              fontSize: '0.7rem',
+                              padding: '2px 6px',
+                              background: 'rgba(0, 212, 255, 0.1)',
+                              border: '1px solid rgba(0, 212, 255, 0.3)',
+                              borderRadius: '4px',
+                              color: 'var(--primary)',
+                            }}>
+                              RAM: {node.resourceLimits.ramPercent}%
+                            </span>
+                          )}
+                          {node.resourceLimits.storageGb && (
+                            <span style={{
+                              fontSize: '0.7rem',
+                              padding: '2px 6px',
+                              background: 'rgba(0, 212, 255, 0.1)',
+                              border: '1px solid rgba(0, 212, 255, 0.3)',
+                              borderRadius: '4px',
+                              color: 'var(--primary)',
+                            }}>
+                              Storage: {node.resourceLimits.storageGb}GB
+                            </span>
+                          )}
+                          {node.resourceLimits.gpuVramPercent && node.resourceLimits.gpuVramPercent[0] && (
+                            <span style={{
+                              fontSize: '0.7rem',
+                              padding: '2px 6px',
+                              background: 'rgba(255, 170, 0, 0.1)',
+                              border: '1px solid rgba(255, 170, 0, 0.3)',
+                              borderRadius: '4px',
+                              color: 'var(--warning)',
+                            }}>
+                              GPU: {node.resourceLimits.gpuVramPercent[0]}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
