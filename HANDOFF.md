@@ -1,5 +1,5 @@
 # OtherThing/RhizOS Cloud - Handoff Document
-**Last Updated**: January 12, 2026 (Session 2)
+**Last Updated**: January 12, 2026 (Session 3 - IPFS Phase 3)
 
 ## Project Overview
 **OtherThing** is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, contribute compute resources via native node applications, share API keys, and build/run AI flows collaboratively.
@@ -67,10 +67,14 @@
 │   │   ├── src/
 │   │   │   ├── main.ts          # Electron main process, IPC
 │   │   │   ├── preload.ts       # Exposed APIs to renderer
-│   │   │   ├── index.html       # GUI (redesigned)
+│   │   │   ├── index.html       # GUI (cyber aesthetic)
 │   │   │   ├── node-service.ts  # WebSocket, job execution
-│   │   │   └── hardware.ts      # Hardware detection
-│   │   ├── package.json         # Build scripts with copy-html
+│   │   │   ├── hardware.ts      # Hardware/drive detection
+│   │   │   └── ipfs-manager.ts  # IPFS daemon lifecycle
+│   │   ├── ipfs-bin/            # Bundled IPFS binaries
+│   │   │   ├── win/ipfs.exe     # Windows kubo (67MB)
+│   │   │   └── linux/ipfs       # Linux kubo (87MB)
+│   │   ├── package.json         # Build scripts + extraResources
 │   │   └── release/             # Built installers
 │   │
 │   └── shared/                  # Shared schemas (flows.ts)
@@ -111,7 +115,15 @@ powershell.exe -Command "Start-Process 'D:\modchain\src\node-electron\release\wi
 
 ### Config Storage
 - Path: `%APPDATA%/otherthing-node/node-config.json` (Windows)
-- Contains: shareKey, nodeId, resourceLimits, remoteControlEnabled
+- Contains: shareKey, nodeId, resourceLimits, remoteControlEnabled, storagePath
+
+### IPFS Integration (v1.3.0+)
+- **IPFSManager** class (`src/ipfs-manager.ts`) handles all IPFS operations
+- Bundled kubo v0.24.0 binary in `resources/ipfs/`
+- Private network mode (no public DHT, no mDNS)
+- IPFS repo stored at `<storagePath>/otherthing-storage/ipfs/`
+- Swarm key written to repo when workspace_joined received
+- Auto-connects to bootstrap peers from orchestrator
 
 ---
 
@@ -152,6 +164,33 @@ powershell.exe -Command "Start-Process 'D:\modchain\src\node-electron\release\wi
   "available": true,
   "current_jobs": 0,
   "remote_control_enabled": true
+}
+```
+
+### IPFS Messages (Phase 3)
+
+**Orchestrator → Node: workspace_joined**
+```json
+{
+  "type": "workspace_joined",
+  "workspace_id": "ws-123",
+  "ipfs_swarm_key": "a1b2c3d4e5f6...",  // 64-char hex (32 bytes)
+  "bootstrap_peers": [
+    "/ip4/192.168.1.10/tcp/4001/p2p/QmNode1...",
+    "/ip4/192.168.1.20/tcp/4001/p2p/QmNode2..."
+  ]
+}
+```
+
+**Node → Orchestrator: ipfs_ready**
+```json
+{
+  "type": "ipfs_ready",
+  "peer_id": "QmNodeABC123...",
+  "addresses": [
+    "/ip4/192.168.1.5/tcp/4001",
+    "/ip4/192.168.1.5/udp/4001/quic"
+  ]
 }
 ```
 
