@@ -179,11 +179,16 @@ export class NodeManager {
       console.log(`[NodeManager] Node ${nodeId} joined workspaces: ${workspaceIds.join(', ')}`);
     }
 
-    // Send registration confirmation with share key
+    // Get workspaces this node belongs to
+    const assignedWorkspaces = this.nodeWorkspaces.get(nodeId);
+    const workspaceList = assignedWorkspaces ? Array.from(assignedWorkspaces) : [];
+
+    // Send registration confirmation with share key and workspaces
     this.send(ws, {
       type: 'registered',
       node_id: nodeId,
-      share_key: shareKey, // Node can display this for users to add to workspaces
+      share_key: shareKey,
+      workspace_ids: workspaceList,
     });
 
     console.log(
