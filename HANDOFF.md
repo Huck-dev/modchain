@@ -1,5 +1,5 @@
 # OtherThing/RhizOS Cloud - Handoff Document
-**Last Updated**: January 12, 2026
+**Last Updated**: January 12, 2026 (Session 2)
 
 ## Project Overview
 **OtherThing** is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, contribute compute resources via native node applications, share API keys, and build/run AI flows collaboratively.
@@ -22,25 +22,21 @@
 
 ## Recent Completions (This Session)
 
-### 1. Node App GUI Redesign
-- Complete visual overhaul with cyber aesthetic matching web dashboard
-- Status banner with orchestrator/WebSocket connection indicators
-- Prominent share key display with copy button
-- Hardware grid layout with GPU vendor badges (nvidia/amd)
-- Styled resource limit sliders
-- Settings panel with remote control toggle
-- Custom window controls (min/max/close)
+### 1. Drive Selector for Storage Sharing
+- Added `getDrives()` to hardware.ts - detects all drives/partitions
+- Drive selector dropdown in Resource Limits UI
+- Visual drive usage bar with color coding (green/yellow/red)
+- Storage slider max adjusts based on selected drive's available space
+- Storage path persisted in node config
+- Storage path sent to orchestrator in registration message
 
-### 2. Fixed Build Process
-- Added `copy-html` script to package.json (tsc doesn't copy HTML files)
-- Build now properly includes index.html in dist folder
+### 2. IPFS Storage Planning Document
+- Created comprehensive IPFS-STORAGE.md planning doc
+- Workspace-scoped private IPFS swarms (content isolation)
+- Detailed implementation phases with code examples
+- Decision rationale (Kubo vs js-ipfs, etc.)
 
-### 3. Workspace Display Fix
-- Node now receives workspace IDs from orchestrator registration response
-- No longer attempts unauthenticated API call to get workspaces
-- Orchestrator sends `workspace_ids` array in `registered` message
-
-### 4. Release v1.1.0
+### 3. Release v1.2.0
 - Created new GitHub release on rhizos-node repo
 - Windows installer: OtherThing-Node-Setup.exe (73MB)
 - Linux AppImage: OtherThing-Node.AppImage (100MB)
@@ -230,6 +226,10 @@ gh release create v1.1.0 \
 ---
 
 ## Remaining TODOs
+- [ ] **IPFS Integration** (see IPFS-STORAGE.md)
+  - [ ] Bundle kubo binary in electron app
+  - [ ] Workspace swarm key management in orchestrator
+  - [ ] Private IPFS clusters per workspace
 - [ ] HTTPS (Let's Encrypt) for production security
 - [ ] Make rhizos-node repo private again
 - [ ] Full token/cost tracking in orchestrator
@@ -246,5 +246,8 @@ gh release create v1.1.0 \
 - Storage: 15TB+
 
 ## Current Release
-- **rhizos-node**: v1.1.0 (Redesigned GUI)
+- **rhizos-node**: v1.2.0 (Drive Selector)
 - **Downloads**: http://155.117.46.228/downloads/
+
+## Planning Documents
+- **IPFS-STORAGE.md**: Comprehensive plan for workspace-scoped distributed storage using private IPFS swarms
