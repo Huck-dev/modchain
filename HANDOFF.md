@@ -1,5 +1,5 @@
 # OtherThing/RhizOS Cloud - Handoff Document
-**Last Updated**: January 12, 2026 (Session 3 - IPFS Phase 3)
+**Last Updated**: January 12, 2026 (Session 3 - IPFS Phase 3 COMPLETE)
 
 ## Project Overview
 **OtherThing** is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, contribute compute resources via native node applications, share API keys, and build/run AI flows collaboratively.
@@ -9,7 +9,6 @@
 - **SSH**: administrator@155.117.46.228
 - **SSH Key Passphrase**: `Leonidas12!`
 - **Sudo Password**: `bAttlezone12a!`
-- **Remote Script**: `/tmp/remote.sh` (handles SSH with expect)
 - **Systemd Services**: `nginx`, `otherthing`
 
 ## Git Repositories
@@ -20,28 +19,71 @@
 
 ---
 
-## Recent Completions (This Session)
+## IMMEDIATE NEXT STEP
 
-### 1. IPFS Integration (Phase 2)
-- Bundled kubo v0.24.0 binaries (Win: 67MB, Linux: 87MB)
-- Created IPFSManager class with full lifecycle management
-- Private network mode for workspace isolation
-- IPFS Storage card in UI with Start/Stop controls
-- Real-time stats display (repo size, objects, peers)
-- Handle workspace_joined message with swarm key
-- Auto-connect to bootstrap peers
-- Send ipfs_ready with peer ID and addresses
+**Deploy orchestrator Phase 3 changes to server:**
+```bash
+# SSH to server and pull + restart
+ssh administrator@155.117.46.228
+# Enter passphrase: Leonidas12!
+cd /opt/rhizos-cloud
+echo 'bAttlezone12a!' | sudo -S git pull
+echo 'bAttlezone12a!' | sudo -S systemctl restart otherthing
+echo 'bAttlezone12a!' | sudo -S systemctl status otherthing
+```
 
-### 2. Drive Selector (Phase 1)
-- Added `getDrives()` to hardware.ts - detects all drives/partitions
-- Drive selector dropdown in Resource Limits UI
-- Visual drive usage bar with color coding
-- Storage path persisted and sent to orchestrator
+The orchestrator code is committed and pushed (commit f1483bb) but NOT yet deployed.
 
-### 3. Release v1.3.0
-- Windows installer: 99MB (was 73MB, +IPFS)
-- Linux AppImage: 137MB (was 100MB, +IPFS)
-- Downloads updated on production server
+---
+
+## Session 3 Completions
+
+### IPFS Phase 3 - Orchestrator Changes (COMMITTED, NOT DEPLOYED)
+
+**Files Modified:**
+1. `src/orchestrator/src/types/index.ts`
+   - Added `ipfsPeerId`, `ipfsAddresses`, `ipfsReady` to ConnectedNode interface
+   - Added `ipfs_ready` to NodeMessageSchema
+   - Added `WorkspaceJoinedMessage` and `IPFSReadyMessage` interfaces
+
+2. `src/orchestrator/src/services/workspace-manager.ts`
+   - Added `ipfsSwarmKey` field to Workspace interface
+   - Added `generateSwarmKey()` method (32 random bytes -> hex)
+   - Updated `createWorkspace()` to generate swarm key
+   - Added `getWorkspaceSwarmKey()` with lazy generation for existing workspaces
+   - Added `getWorkspaceIPFSInfo()` method
+
+3. `src/orchestrator/src/services/node-manager.ts`
+   - Added `workspaceManager` reference field
+   - Added `setWorkspaceManager()` method
+   - Added `handleIPFSReady()` to track node IPFS status
+   - Updated `addNodeToWorkspaceByShareKey()` to send workspace_joined
+   - Added `sendWorkspaceJoinedMessage()` method
+   - Added `getBootstrapPeers()` method for peer discovery
+
+4. `src/orchestrator/src/index.ts`
+   - Added `nodeManager.setWorkspaceManager(workspaceManager)` wiring
+
+### Previous Completions (This Session)
+
+1. **IPFS Integration (Phase 2) - Node App** ✅
+   - Bundled kubo v0.24.0 binaries (Win: 67MB, Linux: 87MB)
+   - Created IPFSManager class with full lifecycle management
+   - Private network mode for workspace isolation
+   - IPFS Storage card in UI with Start/Stop controls
+   - Handle workspace_joined message with swarm key
+   - Auto-connect to bootstrap peers
+   - Send ipfs_ready with peer ID and addresses
+
+2. **Drive Selector (Phase 1)** ✅
+   - Added `getDrives()` to hardware.ts
+   - Drive selector dropdown in Resource Limits UI
+   - Storage path persisted and sent to orchestrator
+
+3. **Release v1.3.0** ✅
+   - Windows installer: 99MB
+   - Linux AppImage: 137MB
+   - Downloads updated on production server
 
 ---
 
@@ -57,10 +99,11 @@
 │   │
 │   ├── orchestrator/            # Backend (Express + WebSocket)
 │   │   └── src/
-│   │       ├── index.ts         # API endpoints
+│   │       ├── index.ts         # API endpoints + service wiring
+│   │       ├── types/index.ts   # TypeScript types + Zod schemas
 │   │       └── services/
-│   │           ├── workspace-manager.ts  # Workspaces, flows, API keys
-│   │           ├── node-manager.ts       # Node connections, share keys
+│   │           ├── workspace-manager.ts  # Workspaces, flows, API keys, IPFS swarm keys
+│   │           ├── node-manager.ts       # Node connections, IPFS peer tracking
 │   │           └── job-queue.ts          # Job routing by workspace
 │   │
 │   ├── node-electron/           # Desktop node app (Electron)
@@ -83,47 +126,6 @@
 
 /tmp/rhizos-node/                # Separate repo for node releases
 ```
-
----
-
-## Node App Architecture
-
-### Features
-- Custom frameless window (Windows) with title bar controls
-- Hardware detection (CPU, RAM, Storage, GPUs via systeminformation)
-- Resource limit sliders (saved to local config)
-- Share key (8-char, locally generated, persistent)
-- Remote control toggle (opt-in for dashboard management)
-- WebSocket connection with auto-reconnect
-- Workspace assignment display
-
-### Build Commands
-```bash
-cd /mnt/d/modchain/src/node-electron
-
-# Windows
-npm run dist:win
-# Output: release/OtherThing-Node-Setup.exe
-
-# Linux
-npm run dist:linux
-# Output: release/OtherThing-Node.AppImage
-
-# Launch locally (Windows)
-powershell.exe -Command "Start-Process 'D:\modchain\src\node-electron\release\win-unpacked\OtherThing Node.exe'"
-```
-
-### Config Storage
-- Path: `%APPDATA%/otherthing-node/node-config.json` (Windows)
-- Contains: shareKey, nodeId, resourceLimits, remoteControlEnabled, storagePath
-
-### IPFS Integration (v1.3.0+)
-- **IPFSManager** class (`src/ipfs-manager.ts`) handles all IPFS operations
-- Bundled kubo v0.24.0 binary in `resources/ipfs/`
-- Private network mode (no public DHT, no mDNS)
-- IPFS repo stored at `<storagePath>/otherthing-storage/ipfs/`
-- Swarm key written to repo when workspace_joined received
-- Auto-connects to bootstrap peers from orchestrator
 
 ---
 
@@ -157,17 +159,7 @@ powershell.exe -Command "Start-Process 'D:\modchain\src\node-electron\release\wi
 }
 ```
 
-### Heartbeat (every 15s)
-```json
-{
-  "type": "heartbeat",
-  "available": true,
-  "current_jobs": 0,
-  "remote_control_enabled": true
-}
-```
-
-### IPFS Messages (Phase 3)
+### IPFS Messages (Phase 3) - NOW IMPLEMENTED
 
 **Orchestrator → Node: workspace_joined**
 ```json
@@ -196,82 +188,53 @@ powershell.exe -Command "Start-Process 'D:\modchain\src\node-electron\release\wi
 
 ---
 
-## Deploy Commands
+## Build & Deploy Commands
 
-### Full Deployment
+### Build Node App
 ```bash
-# 1. Commit changes (both repos)
-cd /mnt/d/modchain && git add -A && git commit -m "message" && git push
-cd /tmp/rhizos-node && git add -A && git commit -m "message" && git push
-
-# 2. Build installers
 cd /mnt/d/modchain/src/node-electron
-npm run dist:win
-npm run dist:linux
+npm run dist:win    # Output: release/OtherThing-Node-Setup.exe
+npm run dist:linux  # Output: release/OtherThing-Node.AppImage
+```
 
-# 3. Create GitHub release
+### Deploy Orchestrator (NEEDS TO BE RUN)
+```bash
+ssh administrator@155.117.46.228
+# Passphrase: Leonidas12!
+cd /opt/rhizos-cloud
+echo 'bAttlezone12a!' | sudo -S git pull
+echo 'bAttlezone12a!' | sudo -S systemctl restart otherthing nginx
+```
+
+### Create GitHub Release
+```bash
 cd /tmp/rhizos-node
-gh release create v1.1.0 \
+gh release create v1.4.0 \
   "/mnt/d/modchain/src/node-electron/release/OtherThing-Node-Setup.exe" \
   "/mnt/d/modchain/src/node-electron/release/OtherThing-Node.AppImage" \
-  --title "v1.1.0" --notes "Release notes here"
-
-# 4. Update server
-/tmp/remote.sh "cd /opt/rhizos-cloud && echo 'bAttlezone12a!' | sudo -S git pull"
-
-# 5. Rebuild frontend
-/tmp/remote.sh "cd /opt/rhizos-cloud/src/desktop && echo 'bAttlezone12a!' | sudo -S rm -rf dist && echo 'bAttlezone12a!' | sudo -S pnpm build"
-
-# 6. Deploy frontend
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S rm -rf /usr/share/nginx/html/assets /usr/share/nginx/html/index.html && echo 'bAttlezone12a!' | sudo -S cp -r /opt/rhizos-cloud/src/desktop/dist/* /usr/share/nginx/html/"
-
-# 7. Update downloads
-/tmp/remote.sh "cd /usr/share/nginx/html/downloads && echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node-Setup.exe 'https://github.com/Huck-dev/rhizos-node/releases/download/v1.1.0/OtherThing-Node-Setup.exe' && echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node.AppImage 'https://github.com/Huck-dev/rhizos-node/releases/download/v1.1.0/OtherThing-Node.AppImage'"
-
-# 8. Restart services
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
+  --title "v1.4.0" --notes "Release notes"
 ```
 
-### Quick Commands
+### Update Server Downloads
 ```bash
-# Check service status
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl status nginx otherthing --no-pager | head -20"
-
-# View orchestrator logs
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S journalctl -u otherthing --since '5 minutes ago' --no-pager | tail -30"
-
-# Restart services
-/tmp/remote.sh "echo 'bAttlezone12a!' | sudo -S systemctl restart nginx otherthing"
+ssh administrator@155.117.46.228
+cd /usr/share/nginx/html/downloads
+echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node-Setup.exe 'https://github.com/Huck-dev/rhizos-node/releases/download/v1.4.0/OtherThing-Node-Setup.exe'
+echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node.AppImage 'https://github.com/Huck-dev/rhizos-node/releases/download/v1.4.0/OtherThing-Node.AppImage'
 ```
-
----
-
-## API Endpoints
-
-### Workspaces
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/workspaces` | GET | List user's workspaces |
-| `/api/v1/workspaces/:id` | GET | Get workspace details |
-| `/api/v1/workspaces/:id/nodes` | GET | Get nodes (includes resourceLimits) |
-| `/api/v1/workspaces/:id/nodes/add-by-key` | POST | Add node by share key |
-
-### Nodes
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/nodes` | GET | List all nodes |
-| `/api/v1/my-nodes` | GET | List nodes in user's workspaces |
-| `/api/v1/nodes/:id/limits` | POST | Update resource limits |
 
 ---
 
 ## Remaining TODOs
-- [ ] **IPFS Integration** (see IPFS-STORAGE.md)
-  - [x] Bundle kubo binary in electron app (v1.3.0)
-  - [ ] Workspace swarm key management in orchestrator (Phase 3)
-  - [ ] Private IPFS clusters per workspace (Phase 3)
-  - [ ] Content operations API (Phase 4)
-  - [ ] Dashboard storage tab (Phase 5)
+
+### IPFS Integration
+- [x] Bundle kubo binary in electron app (v1.3.0)
+- [x] Workspace swarm key management in orchestrator (Phase 3) - COMMITTED
+- [ ] **DEPLOY Phase 3 to server** ← IMMEDIATE NEXT STEP
+- [ ] Content operations API (Phase 4)
+- [ ] Dashboard storage tab (Phase 5)
+
+### Other
 - [ ] HTTPS (Let's Encrypt) for production security
 - [ ] Make rhizos-node repo private again
 - [ ] Full token/cost tracking in orchestrator
