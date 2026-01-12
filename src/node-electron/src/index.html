@@ -463,6 +463,70 @@
       transform: translateX(22px);
     }
 
+    /* Drive Selector */
+    .drive-selector {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .drive-selector-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .drive-selector-label span {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .drive-selector-label .drive-info {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .drive-select {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg-dark);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2300d4ff' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+    .drive-select:hover {
+      border-color: var(--border-accent);
+    }
+    .drive-select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 10px rgba(0,212,255,0.2);
+    }
+    .drive-select option {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      padding: 8px;
+    }
+    .drive-bar {
+      margin-top: 8px;
+      height: 4px;
+      background: var(--bg-dark);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .drive-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--primary-light));
+      transition: width 0.3s;
+    }
+    .drive-bar-fill.warning { background: linear-gradient(90deg, var(--warning), #ff6600); }
+    .drive-bar-fill.danger { background: linear-gradient(90deg, var(--error), #cc0033); }
+
     /* Buttons */
     .btn {
       padding: 14px 28px;
@@ -671,6 +735,20 @@
         <span style="font-size:0.7rem;color:var(--text-muted)">Control how much to share</span>
       </div>
       <div class="card-body">
+        <!-- Drive Selector -->
+        <div class="drive-selector">
+          <div class="drive-selector-label">
+            <span>Storage Drive</span>
+            <span id="drive-info" class="drive-info">Select a drive</span>
+          </div>
+          <select id="drive-select" class="drive-select">
+            <option value="">Loading drives...</option>
+          </select>
+          <div class="drive-bar">
+            <div id="drive-bar-fill" class="drive-bar-fill" style="width: 0%"></div>
+          </div>
+        </div>
+
         <div class="limit-row">
           <span class="limit-label">CPU Cores</span>
           <input type="range" class="limit-slider" id="cpu-slider" min="1" max="16" value="16">
@@ -929,6 +1007,93 @@
       window.electronAPI.onNodeLog(entry => {
         addLog(entry.message, entry.type);
       });
+
+      // Drive Selector
+      const driveSelect = document.getElementById('drive-select');
+      const driveInfo = document.getElementById('drive-info');
+      const driveBarFill = document.getElementById('drive-bar-fill');
+      let drives = [];
+
+      async function loadDrives() {
+        try {
+          drives = await window.electronAPI.getDrives();
+          const savedPath = await window.electronAPI.getStoragePath();
+
+          driveSelect.innerHTML = '<option value="">-- Select a drive --</option>';
+          drives.forEach(drive => {
+            const opt = document.createElement('option');
+            opt.value = drive.mount;
+            opt.textContent = `${drive.mount} - ${drive.available_gb} GB free of ${drive.size_gb} GB (${drive.type})`;
+            if (savedPath === drive.mount) {
+              opt.selected = true;
+            }
+            driveSelect.appendChild(opt);
+          });
+
+          // Update display for saved selection
+          if (savedPath) {
+            const selectedDrive = drives.find(d => d.mount === savedPath);
+            if (selectedDrive) {
+              updateDriveDisplay(selectedDrive);
+            }
+          }
+
+          addLog('Drives detected: ' + drives.length, 'success');
+        } catch (err) {
+          addLog('Failed to load drives: ' + err, 'error');
+          driveSelect.innerHTML = '<option value="">Error loading drives</option>';
+        }
+      }
+
+      function updateDriveDisplay(drive) {
+        if (!drive) {
+          driveInfo.textContent = 'Select a drive';
+          driveBarFill.style.width = '0%';
+          driveBarFill.className = 'drive-bar-fill';
+          return;
+        }
+
+        driveInfo.textContent = `${drive.available_gb} GB free / ${drive.size_gb} GB total`;
+        driveBarFill.style.width = `${drive.used_percent}%`;
+
+        // Color based on usage
+        driveBarFill.className = 'drive-bar-fill';
+        if (drive.used_percent > 90) {
+          driveBarFill.classList.add('danger');
+        } else if (drive.used_percent > 75) {
+          driveBarFill.classList.add('warning');
+        }
+
+        // Update storage slider max based on selected drive
+        const maxStorage = Math.round(drive.available_gb);
+        document.getElementById('storage-slider').max = maxStorage;
+        document.getElementById('storage-max').textContent = maxStorage;
+        if (parseInt(storageSlider.value) > maxStorage) {
+          storageSlider.value = maxStorage;
+        }
+        updateSliderDisplays();
+      }
+
+      driveSelect.addEventListener('change', async () => {
+        const selectedMount = driveSelect.value;
+        const selectedDrive = drives.find(d => d.mount === selectedMount);
+
+        updateDriveDisplay(selectedDrive);
+
+        try {
+          const result = await window.electronAPI.setStoragePath(selectedMount || null);
+          if (result.success) {
+            addLog('Storage drive set to: ' + (selectedMount || 'none'), 'success');
+          } else {
+            addLog('Failed to set storage drive: ' + result.error, 'error');
+          }
+        } catch (err) {
+          addLog('Error setting storage drive: ' + err, 'error');
+        }
+      });
+
+      // Load drives on startup
+      loadDrives();
 
       // Resource Limits
       const cpuSlider = document.getElementById('cpu-slider');

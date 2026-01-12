@@ -7,6 +7,15 @@ interface ResourceLimits {
   gpuVramPercent?: number[];
 }
 
+interface DriveInfo {
+  mount: string;
+  label: string;
+  type: string;
+  size_gb: number;
+  available_gb: number;
+  used_percent: number;
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   getHardware: () => ipcRenderer.invoke('get-hardware'),
   getDetectedHardware: () => ipcRenderer.invoke('get-detected-hardware'),
@@ -19,6 +28,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Resource limits
   getResourceLimits: () => ipcRenderer.invoke('get-resource-limits'),
   setResourceLimits: (limits: ResourceLimits) => ipcRenderer.invoke('set-resource-limits', limits),
+
+  // Drive/storage selection
+  getDrives: (): Promise<DriveInfo[]> => ipcRenderer.invoke('get-drives'),
+  getStoragePath: (): Promise<string | null> => ipcRenderer.invoke('get-storage-path'),
+  setStoragePath: (path: string | null): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('set-storage-path', path),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),

@@ -281,6 +281,25 @@ app.whenReady().then(async () => {
     shell.openExternal('http://155.117.46.228');
   });
 
+  // Drive/storage selection
+  ipcMain.handle('get-drives', async () => {
+    return await HardwareDetector.getDrives();
+  });
+
+  ipcMain.handle('get-storage-path', () => {
+    return nodeService?.getStoragePath() ?? null;
+  });
+
+  ipcMain.handle('set-storage-path', (_, path: string | null) => {
+    if (!nodeService) return { success: false, error: 'Node service not initialized' };
+    try {
+      nodeService.setStoragePath(path);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();

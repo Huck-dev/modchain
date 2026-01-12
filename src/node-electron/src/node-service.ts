@@ -20,6 +20,7 @@ interface NodeConfig {
   nodeId: string;
   resourceLimits: ResourceLimits;
   remoteControlEnabled: boolean;
+  storagePath: string | null;  // Selected drive/path for shared storage
 }
 
 interface Job {
@@ -56,6 +57,7 @@ export class NodeService extends EventEmitter {
   private currentJobs: Map<string, Job> = new Map();
   private resourceLimits: ResourceLimits = {};
   private remoteControlEnabled = false;
+  private storagePath: string | null = null;
   private configPath: string;
 
   constructor(defaultOrchestratorUrl: string) {
@@ -69,6 +71,7 @@ export class NodeService extends EventEmitter {
     this.nodeId = config.nodeId;
     this.resourceLimits = config.resourceLimits;
     this.remoteControlEnabled = config.remoteControlEnabled;
+    this.storagePath = config.storagePath;
   }
 
   private loadOrCreateConfig(): NodeConfig {
@@ -82,6 +85,7 @@ export class NodeService extends EventEmitter {
           nodeId: config.nodeId || `node-${Math.random().toString(36).slice(2, 10)}`,
           resourceLimits: config.resourceLimits || {},
           remoteControlEnabled: config.remoteControlEnabled ?? false,
+          storagePath: config.storagePath ?? null,
         };
       }
     } catch (err) {
@@ -94,6 +98,7 @@ export class NodeService extends EventEmitter {
       nodeId: `node-${Math.random().toString(36).slice(2, 10)}`,
       resourceLimits: {},
       remoteControlEnabled: false,
+      storagePath: null,
     };
     this.saveConfig(config);
     return config;
@@ -106,6 +111,7 @@ export class NodeService extends EventEmitter {
         nodeId: this.nodeId,
         resourceLimits: this.resourceLimits,
         remoteControlEnabled: this.remoteControlEnabled,
+        storagePath: this.storagePath,
       };
       fs.writeFileSync(this.configPath, JSON.stringify(toSave, null, 2));
     } catch (err) {
@@ -187,6 +193,7 @@ export class NodeService extends EventEmitter {
             storage: {
               total_gb: this.hardware?.storage.total_gb || 10,
               available_gb: this.hardware?.storage.available_gb || 5,
+              path: this.storagePath,  // Selected storage drive/path
             },
             mcp_adapters: [],
           },
@@ -436,6 +443,17 @@ export class NodeService extends EventEmitter {
     this.remoteControlEnabled = enabled;
     this.saveConfig();
     this.log(`Remote control ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    this.emit('statusChange');
+  }
+
+  getStoragePath(): string | null {
+    return this.storagePath;
+  }
+
+  setStoragePath(path: string | null): void {
+    this.storagePath = path;
+    this.saveConfig();
+    this.log(`Storage path set to: ${path || 'not selected'}`, 'success');
     this.emit('statusChange');
   }
 }
