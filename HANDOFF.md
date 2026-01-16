@@ -1,5 +1,5 @@
 # OtherThing/RhizOS Cloud - Handoff Document
-**Last Updated**: January 12, 2026 (Session 3 - IPFS Phase 4 COMPLETE)
+**Last Updated**: January 16, 2026 (Session 4 - Repos Integration COMPLETE)
 
 ## Project Overview
 **OtherThing** is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, contribute compute resources via native node applications, share API keys, and build/run AI flows collaboratively.
@@ -16,10 +16,28 @@
 |------|-----|------------|---------|
 | rhizos-cloud | https://github.com/Huck-dev/rhizos-cloud | Public | Main repo (orchestrator, web dashboard, node source) |
 | rhizos-node | https://github.com/Huck-dev/rhizos-node | Public (temp) | Node app releases/installers |
+| on-bored | https://github.com/Huck-dev/on-bored | Public | Repo analysis CLI (cloned to `/opt/on-bored` on server) |
 
 ---
 
 ## Current State
+
+### Repos Integration - COMPLETE
+
+Workspaces now support adding GitHub repositories for analysis. The system clones repos and runs on-bored analysis to generate developer onboarding documentation.
+
+**Features:**
+- Add repos to workspaces via Repos tab
+- Clone and analyze repos with on-bored CLI
+- View analysis results: contributors, tech stack, security issues, code hotspots
+- AI enhancement available via local Ollama or workspace GPU nodes
+
+**API Endpoints:**
+- `GET /api/v1/workspaces/:id/repos` - List repos
+- `POST /api/v1/workspaces/:id/repos` - Add repo
+- `GET /api/v1/workspaces/:id/repos/:repoId` - Get repo details
+- `POST /api/v1/workspaces/:id/repos/:repoId/analyze` - Trigger analysis
+- `DELETE /api/v1/workspaces/:id/repos/:repoId` - Delete repo
 
 ### IPFS Phases 1-4 COMPLETE
 
@@ -60,9 +78,29 @@ echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node.AppImage 'https://git
 
 ---
 
-## Session 3 Summary
+## Session 4 Summary
 
 ### Completed This Session
+
+1. **Repos Integration** - Full workspace repo analysis
+   - Added Repos tab to WorkspaceDetail with list/detail views
+   - WorkspaceRepo interface and repos array in workspace data
+   - CRUD API endpoints for repos
+   - Analyze endpoint that clones repos and runs on-bored
+   - AI routing to workspace GPU nodes or local Ollama
+   - Deployed on-bored CLI to `/opt/on-bored` on server
+   - Added `ON_BORED_CLI` env var to systemd service
+
+2. **on-bored CLI Enhancements**
+   - Added `--json` flag for programmatic JSON output
+   - Added `--ollama-host` flag for remote Ollama instances
+   - Suppressed progress logging in JSON mode
+
+---
+
+## Session 3 Summary
+
+### Completed That Session
 
 1. **IPFS Phase 2** - Node app IPFS integration
    - Bundled kubo v0.24.0 binaries
@@ -87,6 +125,19 @@ echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node.AppImage 'https://git
 
 ## Key Files
 
+### Desktop App (`src/desktop/`)
+| File | Purpose |
+|------|---------|
+| `src/pages/WorkspaceDetail.tsx` | Workspace UI with Repos tab |
+
+### Orchestrator (`src/orchestrator/`)
+| File | Purpose |
+|------|---------|
+| `src/index.ts` | API + service wiring, repos endpoints |
+| `src/services/workspace-manager.ts` | Workspace + repo management |
+| `src/services/node-manager.ts` | IPFS peer tracking |
+| `src/types/index.ts` | Message types |
+
 ### Node App (`src/node-electron/`)
 | File | Purpose |
 |------|---------|
@@ -97,27 +148,29 @@ echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node.AppImage 'https://git
 | `src/hardware.ts` | Drive detection |
 | `ipfs-bin/` | Bundled kubo binaries |
 
-### Orchestrator (`src/orchestrator/`)
+### on-bored (`/opt/on-bored` on server, `/home/huck/on-bored` local)
 | File | Purpose |
 |------|---------|
-| `src/index.ts` | API + service wiring |
-| `src/services/workspace-manager.ts` | Swarm key generation |
-| `src/services/node-manager.ts` | IPFS peer tracking |
-| `src/types/index.ts` | Message types |
+| `bin/cli.js` | Main CLI with --json and --ollama-host flags |
+| `lib/generateHTML.js` | HTML report generator |
 
 ---
 
 ## Build Commands
 
 ```bash
+# Desktop app
+cd /mnt/d/modchain/src/desktop
+pnpm build
+
 # Node app
 cd /mnt/d/modchain/src/node-electron
 npm run dist:win    # Windows installer
 npm run dist:linux  # Linux AppImage
 
-# Orchestrator (if needed)
+# Orchestrator
 cd /mnt/d/modchain/src/orchestrator
-npm run build
+pnpm build
 ```
 
 ## Deploy Commands
@@ -130,7 +183,12 @@ ssh administrator@155.117.46.228
 # Pull and restart orchestrator
 cd /opt/rhizos-cloud
 echo 'bAttlezone12a!' | sudo -S git pull
+echo 'bAttlezone12a!' | sudo -S pnpm build --filter orchestrator
 echo 'bAttlezone12a!' | sudo -S systemctl restart otherthing nginx
+
+# Update on-bored
+cd /opt/on-bored
+echo 'bAttlezone12a!' | sudo -S git pull
 
 # Check status
 echo 'bAttlezone12a!' | sudo -S systemctl status otherthing --no-pager | head -15
@@ -147,6 +205,13 @@ echo 'bAttlezone12a!' | sudo -S systemctl status otherthing --no-pager | head -1
 - [x] Phase 4: File Operations API
 - [ ] **Build & release v1.4.0**
 - [ ] Phase 5: Dashboard storage tab
+
+### Repos
+- [x] Repos tab UI
+- [x] Repos API endpoints
+- [x] on-bored integration
+- [x] Deploy to production
+- [ ] AI enhancement with workspace GPU nodes (infrastructure ready, needs Ollama on nodes)
 
 ### Other
 - [ ] HTTPS (Let's Encrypt)
