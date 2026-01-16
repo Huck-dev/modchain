@@ -4,7 +4,8 @@ import {
   ArrowLeft, Plus, MoreVertical, GripVertical, Users, Server,
   Terminal, LayoutGrid, Trash2, Edit2, CheckCircle, Clock, Circle,
   Copy, RefreshCw, Settings, Cpu, HardDrive, Zap, Key, GitBranch, Play,
-  DollarSign, Activity
+  DollarSign, Activity, FolderGit2, ExternalLink, AlertTriangle, Shield,
+  FileCode, Users2, TrendingUp, Loader2
 } from 'lucide-react';
 import { CyberButton } from '../components';
 import { authFetch } from '../App';
@@ -74,7 +75,7 @@ interface Workspace {
   createdAt: string;
 }
 
-type TabType = 'tasks' | 'console' | 'resources' | 'api-keys' | 'flows';
+type TabType = 'tasks' | 'console' | 'resources' | 'api-keys' | 'flows' | 'repos';
 
 interface WorkspaceFlow {
   id: string;
@@ -93,6 +94,33 @@ interface ApiKey {
   maskedKey: string;
   addedBy: string;
   addedAt: string;
+}
+
+// Repo analysis types
+interface RepoAnalysis {
+  id: string;
+  url: string;
+  name: string;
+  status: 'pending' | 'cloning' | 'analyzing' | 'ready' | 'error';
+  error?: string;
+  addedBy: string;
+  addedAt: string;
+  analyzedAt?: string;
+  // Analysis data (from on-bored)
+  data?: {
+    repoName: string;
+    primaryLanguage: string;
+    totalCommits: number;
+    contributors: Array<{ name: string; commits: number; focus?: string }>;
+    techStack: Array<{ name: string; type: string }>;
+    topFiles: Array<{ file: string; changes: number }>;
+    security?: { vulnerabilities: Array<{ type: string; file: string; line?: number; description: string }> };
+    deadCode?: { unusedComponents: string[]; unusedExports: string[]; unusedFiles: string[] };
+    generatedSummary?: string;
+    aiSummary?: string;
+    aiKeyThings?: string[];
+    aiGotchas?: string[];
+  };
 }
 
 const COLUMN_CONFIG = [
@@ -150,6 +178,14 @@ export function WorkspaceDetail() {
     description: '',
   });
   const [flowError, setFlowError] = useState<string | null>(null);
+
+  // Repos state
+  const [repos, setRepos] = useState<RepoAnalysis[]>([]);
+  const [showRepoModal, setShowRepoModal] = useState(false);
+  const [repoUrl, setRepoUrl] = useState('');
+  const [repoError, setRepoError] = useState<string | null>(null);
+  const [analyzingRepo, setAnalyzingRepo] = useState<string | null>(null);
+  const [selectedRepo, setSelectedRepo] = useState<RepoAnalysis | null>(null);
 
   // Node share key state
   const [nodeShareKey, setNodeShareKey] = useState('');
@@ -244,6 +280,21 @@ export function WorkspaceDetail() {
     }
   }, [id]);
 
+  // Load repos
+  const loadRepos = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/repos`);
+      if (res.ok) {
+        const data = await res.json();
+        setRepos(data.repos || []);
+      }
+    } catch {
+      // Repos might fail, use empty
+    }
+  }, [id]);
+
   // Load usage summary
   const loadUsage = useCallback(async () => {
     if (!id) return;
@@ -265,8 +316,9 @@ export function WorkspaceDetail() {
     loadNodes();
     loadApiKeys();
     loadFlows();
+    loadRepos();
     loadUsage();
-  }, [loadWorkspace, loadTasks, loadNodes, loadApiKeys, loadFlows, loadUsage]);
+  }, [loadWorkspace, loadTasks, loadNodes, loadApiKeys, loadFlows, loadRepos, loadUsage]);
 
   // Task CRUD
   const createTask = async () => {
@@ -423,6 +475,107 @@ export function WorkspaceDetail() {
 
       if (res.ok) {
         setFlows(prev => prev.filter(f => f.id !== flowId));
+      }
+    } catch {
+      // Failed to delete
+    }
+  };
+
+  // Repo management
+  const addRepo = async () => {
+    if (!repoUrl.trim() || !id) return;
+
+    setRepoError(null);
+
+    // Extract repo name from URL
+    const match = repoUrl.match(/github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/);
+    const name = match ? match[1] : repoUrl.split('/').pop() || 'unknown';
+
+    const newRepo: RepoAnalysis = {
+      id: generateUUID(),
+      url: repoUrl,
+      name,
+      status: 'pending',
+      addedBy: 'current-user', // TODO: get from auth
+      addedAt: new Date().toISOString(),
+    };
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/repos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: repoUrl, name }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setRepos(prev => [...prev, data.repo || newRepo]);
+        setRepoUrl('');
+        setShowRepoModal(false);
+        // Trigger analysis
+        analyzeRepo(data.repo?.id || newRepo.id);
+      } else {
+        const data = await res.json();
+        setRepoError(data.error || 'Failed to add repo');
+      }
+    } catch (err) {
+      setRepoError('Network error');
+    }
+  };
+
+  const analyzeRepo = async (repoId: string) => {
+    if (!id) return;
+
+    setAnalyzingRepo(repoId);
+    setRepos(prev => prev.map(r =>
+      r.id === repoId ? { ...r, status: 'cloning' } : r
+    ));
+
+    try {
+      // This will eventually call Tauri to clone and run on-bored analysis
+      // For now, we call the API endpoint that handles it
+      const res = await authFetch(`/api/v1/workspaces/${id}/repos/${repoId}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // Check if workspace has nodes with GPU for AI inference
+          useWorkspaceCompute: nodes.some(n => n.capabilities.gpuCount > 0 && n.status === 'online'),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setRepos(prev => prev.map(r =>
+          r.id === repoId ? { ...r, status: 'ready', data: data.analysis, analyzedAt: new Date().toISOString() } : r
+        ));
+      } else {
+        const data = await res.json();
+        setRepos(prev => prev.map(r =>
+          r.id === repoId ? { ...r, status: 'error', error: data.error || 'Analysis failed' } : r
+        ));
+      }
+    } catch (err) {
+      setRepos(prev => prev.map(r =>
+        r.id === repoId ? { ...r, status: 'error', error: 'Network error during analysis' } : r
+      ));
+    } finally {
+      setAnalyzingRepo(null);
+    }
+  };
+
+  const deleteRepo = async (repoId: string) => {
+    if (!id) return;
+
+    try {
+      const res = await authFetch(`/api/v1/workspaces/${id}/repos/${repoId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setRepos(prev => prev.filter(r => r.id !== repoId));
+        if (selectedRepo?.id === repoId) {
+          setSelectedRepo(null);
+        }
       }
     } catch {
       // Failed to delete
@@ -633,6 +786,7 @@ Members: ${workspace?.members.length || 0}`
       }}>
         {[
           { id: 'tasks', label: 'Tasks', icon: LayoutGrid },
+          { id: 'repos', label: 'Repos', icon: FolderGit2 },
           { id: 'flows', label: 'Flows', icon: GitBranch },
           { id: 'console', label: 'Console', icon: Terminal },
           { id: 'resources', label: 'Resources', icon: Server },
@@ -963,6 +1117,392 @@ Members: ${workspace?.members.length || 0}`
                     }}>
                       Updated {new Date(flow.updatedAt).toLocaleDateString()}
                     </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'repos' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--gap-md)' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              {repos.length} repo{repos.length !== 1 ? 's' : ''} in this workspace
+            </span>
+            <CyberButton variant="primary" icon={Plus} onClick={() => { setRepoError(null); setShowRepoModal(true); }}>
+              ADD REPO
+            </CyberButton>
+          </div>
+
+          {repos.length === 0 ? (
+            <div className="cyber-card">
+              <div className="cyber-card-body" style={{ textAlign: 'center', padding: 'var(--gap-xl)' }}>
+                <FolderGit2 size={48} style={{ color: 'var(--text-muted)', opacity: 0.3, marginBottom: 'var(--gap-md)' }} />
+                <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--gap-md)' }}>
+                  No repositories added to this workspace yet.
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  Add a GitHub repo to generate onboarding documentation for your team.
+                </p>
+              </div>
+            </div>
+          ) : selectedRepo ? (
+            // Repo detail view
+            <div>
+              <button
+                onClick={() => setSelectedRepo(null)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--gap-xs)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  marginBottom: 'var(--gap-md)',
+                  padding: 0,
+                  fontSize: '0.85rem',
+                }}
+              >
+                <ArrowLeft size={16} />
+                Back to repos
+              </button>
+
+              {/* Repo Header */}
+              <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)' }}>
+                <div className="cyber-card-body" style={{ padding: 'var(--gap-lg)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--gap-md)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-md)' }}>
+                      <FolderGit2 size={32} style={{ color: 'var(--primary)' }} />
+                      <div>
+                        <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)', margin: 0 }}>
+                          {selectedRepo.name}
+                        </h3>
+                        <a
+                          href={selectedRepo.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          {selectedRepo.url} <ExternalLink size={12} />
+                        </a>
+                      </div>
+                    </div>
+                    {selectedRepo.data && (
+                      <div style={{ display: 'flex', gap: 'var(--gap-sm)' }}>
+                        {selectedRepo.data.primaryLanguage && (
+                          <span style={{
+                            padding: '4px 12px',
+                            background: 'var(--bg-void)',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.8rem',
+                            color: 'var(--primary)',
+                          }}>
+                            {selectedRepo.data.primaryLanguage}
+                          </span>
+                        )}
+                        <span style={{
+                          padding: '4px 12px',
+                          background: 'var(--bg-void)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.8rem',
+                          color: 'var(--text-muted)',
+                        }}>
+                          {selectedRepo.data.totalCommits} commits
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary */}
+                  {(selectedRepo.data?.aiSummary || selectedRepo.data?.generatedSummary) && (
+                    <div style={{
+                      padding: 'var(--gap-md)',
+                      background: 'var(--bg-void)',
+                      borderRadius: 'var(--radius-sm)',
+                      marginBottom: 'var(--gap-md)',
+                    }}>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0, lineHeight: 1.6 }}>
+                        {selectedRepo.data.aiSummary || selectedRepo.data.generatedSummary}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* AI Key Things */}
+                  {selectedRepo.data?.aiKeyThings && selectedRepo.data.aiKeyThings.length > 0 && (
+                    <div style={{ marginBottom: 'var(--gap-md)' }}>
+                      <h4 style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: 'var(--gap-sm)', textTransform: 'uppercase' }}>
+                        Key Things to Understand
+                      </h4>
+                      <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                        {selectedRepo.data.aiKeyThings.map((thing, i) => (
+                          <li key={i} style={{ marginBottom: '4px' }}>{thing}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* AI Gotchas */}
+                  {selectedRepo.data?.aiGotchas && selectedRepo.data.aiGotchas.length > 0 && (
+                    <div>
+                      <h4 style={{ fontSize: '0.8rem', color: 'var(--warning)', marginBottom: 'var(--gap-sm)', textTransform: 'uppercase' }}>
+                        Watch Out For
+                      </h4>
+                      <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                        {selectedRepo.data.aiGotchas.map((gotcha, i) => (
+                          <li key={i} style={{ marginBottom: '4px' }}>{gotcha}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              {selectedRepo.data && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: 'var(--gap-md)',
+                  marginBottom: 'var(--gap-md)',
+                }}>
+                  {/* Tech Stack */}
+                  <div className="cyber-card" style={{ margin: 0 }}>
+                    <div className="cyber-card-header">
+                      <span className="cyber-card-title">TECH STACK</span>
+                    </div>
+                    <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--gap-xs)' }}>
+                        {selectedRepo.data.techStack.map((tech, i) => (
+                          <span key={i} style={{
+                            padding: '4px 10px',
+                            background: 'var(--bg-void)',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.8rem',
+                            color: 'var(--text-secondary)',
+                          }}>
+                            {tech.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top Contributors */}
+                  <div className="cyber-card" style={{ margin: 0 }}>
+                    <div className="cyber-card-header">
+                      <span className="cyber-card-title">TOP CONTRIBUTORS</span>
+                    </div>
+                    <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                      {selectedRepo.data.contributors.slice(0, 5).map((c, i) => (
+                        <div key={i} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: 'var(--gap-xs) 0',
+                          borderBottom: i < 4 ? '1px solid var(--border-subtle)' : 'none',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
+                            <div style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: '50%',
+                              background: i === 0 ? 'var(--primary)' : 'var(--bg-void)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.7rem',
+                              color: i === 0 ? 'white' : 'var(--text-muted)',
+                            }}>
+                              {c.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{c.name}</span>
+                            {c.focus && (
+                              <span style={{
+                                fontSize: '0.65rem',
+                                padding: '2px 6px',
+                                background: 'rgba(139, 92, 246, 0.1)',
+                                color: 'var(--primary-light)',
+                                borderRadius: '4px',
+                              }}>
+                                {c.focus}
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{c.commits} commits</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Security Issues */}
+                  {selectedRepo.data.security && selectedRepo.data.security.vulnerabilities.length > 0 && (
+                    <div className="cyber-card" style={{ margin: 0 }}>
+                      <div className="cyber-card-header" style={{ borderColor: 'var(--error)' }}>
+                        <span className="cyber-card-title" style={{ color: 'var(--error)' }}>
+                          <Shield size={14} style={{ marginRight: '6px' }} />
+                          SECURITY ({selectedRepo.data.security.vulnerabilities.length})
+                        </span>
+                      </div>
+                      <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                        {selectedRepo.data.security.vulnerabilities.slice(0, 5).map((v, i) => (
+                          <div key={i} style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 'var(--gap-sm)',
+                            padding: 'var(--gap-xs) 0',
+                            borderBottom: i < 4 ? '1px solid var(--border-subtle)' : 'none',
+                          }}>
+                            <AlertTriangle size={14} style={{ color: 'var(--error)', marginTop: '2px', flexShrink: 0 }} />
+                            <div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{v.type}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{v.file}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hot Files */}
+                  <div className="cyber-card" style={{ margin: 0 }}>
+                    <div className="cyber-card-header">
+                      <span className="cyber-card-title">
+                        <TrendingUp size={14} style={{ marginRight: '6px' }} />
+                        HOT FILES
+                      </span>
+                    </div>
+                    <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                      {selectedRepo.data.topFiles.slice(0, 5).map((f, i) => (
+                        <div key={i} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: 'var(--gap-xs) 0',
+                          borderBottom: i < 4 ? '1px solid var(--border-subtle)' : 'none',
+                        }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                            {f.file.split('/').pop()}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--warning)' }}>{f.changes} changes</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Repo list view
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: 'var(--gap-md)',
+            }}>
+              {repos.map(repo => (
+                <div
+                  key={repo.id}
+                  className="cyber-card hover-lift"
+                  style={{ margin: 0, cursor: repo.status === 'ready' ? 'pointer' : 'default' }}
+                  onClick={() => repo.status === 'ready' && setSelectedRepo(repo)}
+                >
+                  <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      marginBottom: 'var(--gap-sm)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)' }}>
+                        <FolderGit2 size={20} style={{ color: 'var(--primary)' }} />
+                        <div>
+                          <div style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                            {repo.name}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-xs)' }}>
+                        {repo.status === 'pending' && (
+                          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(128, 128, 128, 0.2)', color: 'var(--text-muted)' }}>
+                            Pending
+                          </span>
+                        )}
+                        {(repo.status === 'cloning' || repo.status === 'analyzing') && (
+                          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(0, 212, 255, 0.2)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Loader2 size={12} className="spin" />
+                            {repo.status === 'cloning' ? 'Cloning...' : 'Analyzing...'}
+                          </span>
+                        )}
+                        {repo.status === 'ready' && (
+                          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(100, 255, 100, 0.2)', color: 'var(--success)' }}>
+                            Ready
+                          </span>
+                        )}
+                        {repo.status === 'error' && (
+                          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255, 100, 100, 0.2)', color: 'var(--error)' }}>
+                            Error
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteRepo(repo.id); }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--text-muted)',
+                            padding: '4px',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--error)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {repo.error && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--error)', marginBottom: 'var(--gap-sm)' }}>
+                        {repo.error}
+                      </div>
+                    )}
+
+                    {repo.data && (
+                      <div>
+                        <p style={{
+                          fontSize: '0.8rem',
+                          color: 'var(--text-muted)',
+                          marginBottom: 'var(--gap-sm)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {repo.data.aiSummary || repo.data.generatedSummary || 'No summary'}
+                        </p>
+                        <div style={{ display: 'flex', gap: 'var(--gap-sm)', flexWrap: 'wrap' }}>
+                          {repo.data.primaryLanguage && (
+                            <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'var(--bg-void)', borderRadius: '4px', color: 'var(--text-secondary)' }}>
+                              {repo.data.primaryLanguage}
+                            </span>
+                          )}
+                          <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'var(--bg-void)', borderRadius: '4px', color: 'var(--text-secondary)' }}>
+                            {repo.data.contributors.length} contributors
+                          </span>
+                          {repo.data.security && repo.data.security.vulnerabilities.length > 0 && (
+                            <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255, 100, 100, 0.1)', borderRadius: '4px', color: 'var(--error)' }}>
+                              {repo.data.security.vulnerabilities.length} issues
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {repo.status === 'ready' && (
+                      <div style={{ marginTop: 'var(--gap-sm)', paddingTop: 'var(--gap-sm)', borderTop: '1px solid var(--border-subtle)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        Click to view details
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1955,6 +2495,122 @@ Members: ${workspace?.members.length || 0}`
                   disabled={!flowForm.name.trim()}
                 >
                   CREATE FLOW
+                </CyberButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Repo Modal */}
+      {showRepoModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--gap-xl)',
+            width: '100%',
+            maxWidth: '500px',
+          }}>
+            <h3 style={{
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              marginBottom: 'var(--gap-lg)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--gap-sm)',
+            }}>
+              <FolderGit2 size={20} style={{ color: 'var(--accent-primary)' }} />
+              Add Repository
+            </h3>
+            <div>
+              <div style={{ marginBottom: 'var(--gap-lg)' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                }}>
+                  Repository URL
+                </label>
+                <input
+                  type="text"
+                  value={repoUrl}
+                  onChange={(e) => {
+                    setRepoUrl(e.target.value);
+                    setRepoError(null);
+                  }}
+                  placeholder="https://github.com/user/repo or git@github.com:user/repo.git"
+                  className="settings-input"
+                  autoFocus
+                />
+              </div>
+              {repoError && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--gap-sm)',
+                  padding: 'var(--gap-sm) var(--gap-md)',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: 'var(--gap-lg)',
+                  color: '#ef4444',
+                  fontSize: '0.85rem',
+                }}>
+                  <AlertTriangle size={16} />
+                  {repoError}
+                </div>
+              )}
+              <div style={{
+                background: 'var(--bg-void)',
+                padding: 'var(--gap-md)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: 'var(--gap-lg)',
+              }}>
+                <p style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: 'var(--gap-sm)',
+                }}>
+                  <strong style={{ color: 'var(--text-secondary)' }}>Analysis Options:</strong>
+                </p>
+                <ul style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--text-muted)',
+                  margin: 0,
+                  paddingLeft: 'var(--gap-lg)',
+                }}>
+                  <li style={{ marginBottom: '4px' }}>Static analysis runs instantly (no AI required)</li>
+                  <li style={{ marginBottom: '4px' }}>AI enhancement available via local Ollama</li>
+                  <li>Workspace nodes with GPU can provide AI inference</li>
+                </ul>
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--gap-sm)', justifyContent: 'flex-end' }}>
+                <CyberButton onClick={() => {
+                  setShowRepoModal(false);
+                  setRepoUrl('');
+                  setRepoError(null);
+                }}>
+                  CANCEL
+                </CyberButton>
+                <CyberButton
+                  variant="primary"
+                  icon={Plus}
+                  onClick={addRepo}
+                  disabled={!repoUrl.trim()}
+                >
+                  ADD REPO
                 </CyberButton>
               </div>
             </div>

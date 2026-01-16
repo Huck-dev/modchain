@@ -35,6 +35,31 @@ export interface WorkspaceFlow {
   updatedAt: string;
 }
 
+export interface WorkspaceRepo {
+  id: string;
+  url: string;
+  name: string;
+  status: 'pending' | 'cloning' | 'analyzing' | 'ready' | 'error';
+  error?: string;
+  addedBy: string;
+  addedAt: string;
+  analyzedAt?: string;
+  data?: {
+    repoName: string;
+    primaryLanguage: string;
+    totalCommits: number;
+    contributors: Array<{ name: string; commits: number; focus?: string }>;
+    techStack: Array<{ name: string; type: string }>;
+    topFiles: Array<{ file: string; changes: number }>;
+    security?: { vulnerabilities: Array<{ type: string; file: string; line?: number; description: string }> };
+    deadCode?: { unusedComponents: string[]; unusedExports: string[]; unusedFiles: string[] };
+    generatedSummary?: string;
+    aiSummary?: string;
+    aiKeyThings?: string[];
+    aiGotchas?: string[];
+  };
+}
+
 export interface ResourceUsageEntry {
   id: string;
   flowId?: string;
@@ -66,6 +91,7 @@ export interface Workspace {
   members: WorkspaceMember[];
   apiKeys: WorkspaceApiKey[];
   flows: WorkspaceFlow[];
+  repos: WorkspaceRepo[];
   resourceUsage: WorkspaceResourceUsage;
   createdAt: string;
   // IPFS integration - swarm key for private network isolation
@@ -164,6 +190,7 @@ export class WorkspaceManager {
       ],
       apiKeys: [],
       flows: [],
+      repos: [],
       resourceUsage: {
         totalCostCents: 0,
         totalTokens: 0,
@@ -888,5 +915,172 @@ export class WorkspaceManager {
     if (!swarmKey) return null;
 
     return { swarmKey };
+  }
+
+  // ============ Repository Management ============
+
+  getRepos(workspaceId: string, userId: string): { success: boolean; repos?: WorkspaceRepo[]; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    // Check if user is a member
+    if (!workspace.members.some((m) => m.userId === userId)) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    // Initialize repos array if missing (for existing workspaces)
+    if (!workspace.repos) {
+      workspace.repos = [];
+    }
+
+    return { success: true, repos: workspace.repos };
+  }
+
+  getRepo(
+    workspaceId: string,
+    repoId: string,
+    userId: string
+  ): { success: boolean; repo?: WorkspaceRepo; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    if (!workspace.members.some((m) => m.userId === userId)) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    if (!workspace.repos) {
+      workspace.repos = [];
+    }
+
+    const repo = workspace.repos.find((r) => r.id === repoId);
+    if (!repo) {
+      return { success: false, error: 'Repository not found' };
+    }
+
+    return { success: true, repo };
+  }
+
+  addRepo(
+    workspaceId: string,
+    userId: string,
+    url: string,
+    username: string
+  ): { success: boolean; repo?: WorkspaceRepo; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    if (!workspace.members.some((m) => m.userId === userId)) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    // Initialize repos array if missing
+    if (!workspace.repos) {
+      workspace.repos = [];
+    }
+
+    // Check if repo already exists
+    if (workspace.repos.some((r) => r.url === url)) {
+      return { success: false, error: 'Repository already added to this workspace' };
+    }
+
+    // Extract repo name from URL
+    const urlParts = url.replace(/\.git$/, '').split('/');
+    const repoName = urlParts[urlParts.length - 1] || 'Unknown';
+
+    const repo: WorkspaceRepo = {
+      id: uuidv4(),
+      url,
+      name: repoName,
+      status: 'pending',
+      addedBy: username,
+      addedAt: new Date().toISOString(),
+    };
+
+    workspace.repos.push(repo);
+    this.saveToDisk();
+
+    console.log(`[WorkspaceManager] Added repo "${repoName}" to workspace "${workspace.name}"`);
+
+    return { success: true, repo };
+  }
+
+  updateRepo(
+    workspaceId: string,
+    repoId: string,
+    userId: string,
+    updates: Partial<WorkspaceRepo>
+  ): { success: boolean; repo?: WorkspaceRepo; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    if (!workspace.members.some((m) => m.userId === userId)) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    if (!workspace.repos) {
+      return { success: false, error: 'Repository not found' };
+    }
+
+    const repoIndex = workspace.repos.findIndex((r) => r.id === repoId);
+    if (repoIndex === -1) {
+      return { success: false, error: 'Repository not found' };
+    }
+
+    // Update repo with provided fields
+    const repo = workspace.repos[repoIndex];
+    if (updates.status !== undefined) repo.status = updates.status;
+    if (updates.error !== undefined) repo.error = updates.error;
+    if (updates.analyzedAt !== undefined) repo.analyzedAt = updates.analyzedAt;
+    if (updates.data !== undefined) repo.data = updates.data;
+
+    this.saveToDisk();
+
+    return { success: true, repo };
+  }
+
+  deleteRepo(
+    workspaceId: string,
+    repoId: string,
+    userId: string
+  ): { success: boolean; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    // Only owner/admin can delete repos
+    const member = workspace.members.find((m) => m.userId === userId);
+    if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
+      return { success: false, error: 'Only workspace owner or admin can delete repositories' };
+    }
+
+    if (!workspace.repos) {
+      return { success: false, error: 'Repository not found' };
+    }
+
+    const repoIndex = workspace.repos.findIndex((r) => r.id === repoId);
+    if (repoIndex === -1) {
+      return { success: false, error: 'Repository not found' };
+    }
+
+    const removed = workspace.repos.splice(repoIndex, 1)[0];
+    this.saveToDisk();
+
+    console.log(`[WorkspaceManager] Deleted repo "${removed.name}" from workspace "${workspace.name}"`);
+
+    return { success: true };
   }
 }

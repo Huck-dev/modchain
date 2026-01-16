@@ -8,6 +8,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
+import { spawn } from 'child_process';
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
 
 import { NodeManager } from './services/node-manager.js';
 import { JobQueue } from './services/job-queue.js';
@@ -621,6 +625,255 @@ app.delete('/api/v1/workspaces/:id/flows/:flowId', requireAuth, (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// ============ Workspace Repos ============
+
+// Get all repos for a workspace
+app.get('/api/v1/workspaces/:id/repos', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.getRepos(req.params.id, session.userId);
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ repos: result.repos });
+});
+
+// Get a specific repo
+app.get('/api/v1/workspaces/:id/repos/:repoId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.getRepo(req.params.id, req.params.repoId, session.userId);
+
+  if (!result.success) {
+    res.status(404).json({ error: result.error });
+    return;
+  }
+
+  res.json({ repo: result.repo });
+});
+
+// Add a new repo
+app.post('/api/v1/workspaces/:id/repos', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const { url } = req.body;
+
+  if (!url) {
+    res.status(400).json({ error: 'Repository URL is required' });
+    return;
+  }
+
+  const result = workspaceManager.addRepo(
+    req.params.id,
+    session.userId,
+    url,
+    session.username
+  );
+
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.status(201).json({ repo: result.repo });
+});
+
+// Update a repo (status, data, etc.)
+app.patch('/api/v1/workspaces/:id/repos/:repoId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const { status, error, analyzedAt, data } = req.body;
+
+  const result = workspaceManager.updateRepo(
+    req.params.id,
+    req.params.repoId,
+    session.userId,
+    { status, error, analyzedAt, data }
+  );
+
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json({ repo: result.repo });
+});
+
+// Delete a repo
+app.delete('/api/v1/workspaces/:id/repos/:repoId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.deleteRepo(
+    req.params.id,
+    req.params.repoId,
+    session.userId
+  );
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ success: true });
+});
+
+// Analyze a repo (clone + run on-bored analysis)
+app.post('/api/v1/workspaces/:id/repos/:repoId/analyze', requireAuth, async (req, res) => {
+  const session = (req as any).session;
+  const { useWorkspaceCompute } = req.body;
+
+  // Get the repo
+  const repoResult = workspaceManager.getRepo(req.params.id, req.params.repoId, session.userId);
+  if (!repoResult.success || !repoResult.repo) {
+    res.status(404).json({ error: repoResult.error || 'Repository not found' });
+    return;
+  }
+
+  const repo = repoResult.repo;
+
+  // Update status to cloning
+  workspaceManager.updateRepo(req.params.id, req.params.repoId, session.userId, { status: 'cloning' });
+
+  try {
+    // Create temp directory for clone
+    const tmpDir = path.join(os.tmpdir(), 'on-bored-repos', repo.id);
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+
+    const repoPath = path.join(tmpDir, repo.name.replace('/', '-'));
+
+    // Clone the repo if not already cloned
+    if (!fs.existsSync(repoPath)) {
+      await new Promise<void>((resolve, reject) => {
+        const gitClone = spawn('git', ['clone', '--depth', '100', repo.url, repoPath]);
+        let stderr = '';
+        gitClone.stderr.on('data', (data) => { stderr += data.toString(); });
+        gitClone.on('close', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`Git clone failed: ${stderr}`));
+        });
+        gitClone.on('error', reject);
+      });
+    }
+
+    // Update status to analyzing
+    workspaceManager.updateRepo(req.params.id, req.params.repoId, session.userId, { status: 'analyzing' });
+
+    // Determine AI mode
+    // Priority: 1. Workspace compute (GPU nodes), 2. Local Ollama, 3. Static only
+    let aiMode = '';
+    let remoteAiEndpoint: string | null = null;
+
+    if (useWorkspaceCompute) {
+      // Find workspace nodes with GPUs that are online
+      const workspaceNodes = nodeManager.getNodesForWorkspace(req.params.id);
+      const gpuNode = workspaceNodes.find(
+        (n) => n.capabilities.gpus.length > 0 && n.available
+      );
+
+      if (gpuNode) {
+        // Try to extract remote address from WebSocket connection
+        const remoteAddress = (gpuNode.ws as any)?._socket?.remoteAddress;
+        if (remoteAddress && remoteAddress !== '::1' && remoteAddress !== '127.0.0.1') {
+          // Route AI inference to workspace node
+          // The node exposes an Ollama-compatible API endpoint on port 11434
+          remoteAiEndpoint = `http://${remoteAddress}:11434`;
+          aiMode = '--ai ollama';
+          console.log(`[RepoAnalyze] Using workspace GPU node ${gpuNode.id} (${remoteAddress}) for AI inference`);
+        } else {
+          // Node is local or address unavailable, fall back to local Ollama
+          aiMode = '--ai ollama';
+          console.log(`[RepoAnalyze] GPU node ${gpuNode.id} found but using local Ollama (same host)`);
+        }
+      } else {
+        // Fall back to local Ollama
+        aiMode = '--ai ollama';
+        console.log(`[RepoAnalyze] No GPU nodes available, falling back to local Ollama`);
+      }
+    }
+
+    // Run on-bored analysis
+    // The on-bored CLI should be available at a known location
+    const onBoardedPath = process.env.ON_BORED_CLI || path.join(process.cwd(), '..', '..', '..', 'on-bored', 'bin', 'cli.js');
+
+    const analysis = await new Promise<any>((resolve, reject) => {
+      const args = [onBoardedPath, repoPath, '--json'];
+      if (aiMode) {
+        args.push(...aiMode.split(' '));
+      }
+      if (remoteAiEndpoint) {
+        args.push('--ollama-host', remoteAiEndpoint);
+      }
+
+      const analyzer = spawn('node', args);
+      let stdout = '';
+      let stderr = '';
+
+      analyzer.stdout.on('data', (data) => { stdout += data.toString(); });
+      analyzer.stderr.on('data', (data) => { stderr += data.toString(); });
+
+      analyzer.on('close', (code) => {
+        if (code === 0) {
+          try {
+            // on-bored outputs JSON when --json flag is used
+            // Parse the last JSON object in output (in case there's logging before it)
+            const jsonMatch = stdout.match(/\{[\s\S]*\}$/);
+            if (jsonMatch) {
+              resolve(JSON.parse(jsonMatch[0]));
+            } else {
+              // Fallback: try to parse the whole output
+              resolve(JSON.parse(stdout));
+            }
+          } catch (e) {
+            // If JSON parsing fails, return a minimal result
+            resolve({
+              repoName: repo.name,
+              primaryLanguage: 'Unknown',
+              totalCommits: 0,
+              contributors: [],
+              techStack: [],
+              topFiles: [],
+              generatedSummary: 'Analysis completed but output parsing failed',
+            });
+          }
+        } else {
+          reject(new Error(`Analysis failed: ${stderr || 'Unknown error'}`));
+        }
+      });
+
+      analyzer.on('error', (err) => {
+        reject(new Error(`Failed to run analyzer: ${err.message}`));
+      });
+    });
+
+    // Update repo with analysis data
+    const updateResult = workspaceManager.updateRepo(
+      req.params.id,
+      req.params.repoId,
+      session.userId,
+      {
+        status: 'ready',
+        analyzedAt: new Date().toISOString(),
+        data: analysis,
+      }
+    );
+
+    res.json({ analysis, repo: updateResult.repo });
+  } catch (err: any) {
+    // Update repo with error
+    workspaceManager.updateRepo(
+      req.params.id,
+      req.params.repoId,
+      session.userId,
+      {
+        status: 'error',
+        error: err.message || 'Analysis failed',
+      }
+    );
+
+    res.status(500).json({ error: err.message || 'Analysis failed' });
+  }
 });
 
 // ============ Workspace Resource Usage ============
