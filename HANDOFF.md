@@ -1,5 +1,5 @@
 # OtherThing/RhizOS Cloud - Handoff Document
-**Last Updated**: January 16, 2026 (Session 4 - Repos Integration COMPLETE)
+**Last Updated**: January 16, 2026 (Session 5 - v1.4.0 Released)
 
 ## Project Overview
 **OtherThing** is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, contribute compute resources via native node applications, share API keys, and build/run AI flows collaboratively.
@@ -44,37 +44,15 @@ Workspaces now support adding GitHub repositories for analysis. The system clone
 | Phase | Description | Status |
 |-------|-------------|--------|
 | 1 | Drive Selector | ✅ Deployed |
-| 2 | IPFS Integration (Node App) | ✅ Deployed (v1.3.0) |
+| 2 | IPFS Integration (Node App) | ✅ Deployed (v1.4.0) |
 | 3 | Orchestrator Changes | ✅ Deployed |
-| 4 | File Operations API | ✅ Committed (not built/released) |
+| 4 | File Operations API | ✅ Deployed (v1.4.0) |
 
 ### Next Steps
 
-1. **Build new node app with Phase 4**:
-```bash
-cd /mnt/d/modchain/src/node-electron
-npm run dist:win
-npm run dist:linux
-```
-
-2. **Create v1.4.0 release**:
-```bash
-cd /tmp/rhizos-node
-gh release create v1.4.0 \
-  "/mnt/d/modchain/src/node-electron/release/OtherThing-Node-Setup.exe" \
-  "/mnt/d/modchain/src/node-electron/release/OtherThing-Node.AppImage" \
-  --title "v1.4.0 - File Operations" --notes "IPFS file add/get/pin/unpin APIs"
-```
-
-3. **Update server downloads**:
-```bash
-ssh administrator@155.117.46.228
-cd /usr/share/nginx/html/downloads
-echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node-Setup.exe 'https://github.com/Huck-dev/rhizos-node/releases/download/v1.4.0/OtherThing-Node-Setup.exe'
-echo 'bAttlezone12a!' | sudo -S curl -L -o OtherThing-Node.AppImage 'https://github.com/Huck-dev/rhizos-node/releases/download/v1.4.0/OtherThing-Node.AppImage'
-```
-
-4. **Phase 5**: Dashboard storage tab (UI for file operations)
+1. **Phase 5**: Dashboard storage tab (UI for IPFS file operations)
+2. **HTTPS**: Set up Let's Encrypt for production server
+3. **AI on Nodes**: Install Ollama on workspace GPU nodes for repo analysis
 
 ---
 
@@ -203,7 +181,7 @@ echo 'bAttlezone12a!' | sudo -S systemctl status otherthing --no-pager | head -1
 - [x] Phase 2: IPFS Integration (Node)
 - [x] Phase 3: Orchestrator Changes
 - [x] Phase 4: File Operations API
-- [ ] **Build & release v1.4.0**
+- [x] **Build & release v1.4.0**
 - [ ] Phase 5: Dashboard storage tab
 
 ### Repos
@@ -229,5 +207,6 @@ echo 'bAttlezone12a!' | sudo -S systemctl status otherthing --no-pager | head -1
 - Storage: 15TB+
 
 ## Current Release
-- **rhizos-node**: v1.3.0 (IPFS Integration)
+- **rhizos-node**: v1.4.0 (File Operations API)
 - **Downloads**: http://155.117.46.228/downloads/
+- **GitHub Release**: https://github.com/Huck-dev/rhizos-node/releases/tag/v1.4.0
