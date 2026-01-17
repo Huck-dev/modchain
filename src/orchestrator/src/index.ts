@@ -876,6 +876,223 @@ app.post('/api/v1/workspaces/:id/repos/:repoId/analyze', requireAuth, async (req
   }
 });
 
+// ============ Workspace Storage (IPFS) ============
+
+// Get all files in workspace
+app.get('/api/v1/workspaces/:id/storage/files', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.getFiles(req.params.id, session.userId);
+
+  if (!result.success) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+
+  res.json({ files: result.files });
+});
+
+// Get a specific file by ID
+app.get('/api/v1/workspaces/:id/storage/files/:fileId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.getFile(req.params.id, req.params.fileId, session.userId);
+
+  if (!result.success) {
+    res.status(404).json({ error: result.error });
+    return;
+  }
+
+  res.json({ file: result.file });
+});
+
+// Upload content to IPFS and register in workspace
+app.post('/api/v1/workspaces/:id/storage/upload', requireAuth, async (req, res) => {
+  const session = (req as any).session;
+  const { content, filename, mimeType } = req.body;
+
+  if (!content) {
+    res.status(400).json({ error: 'Content is required' });
+    return;
+  }
+
+  // Find an IPFS-enabled node for this workspace
+  const workspaceNodes = nodeManager.getNodesForWorkspace(req.params.id);
+  const ipfsNode = workspaceNodes.find((n) => n.ipfsReady && n.available);
+
+  if (!ipfsNode) {
+    res.status(503).json({ error: 'No IPFS-enabled nodes available in this workspace' });
+    return;
+  }
+
+  try {
+    // Send ipfs-add-content message to the node and wait for response
+    const requestId = `ipfs-add-${Date.now()}`;
+
+    const cidPromise = new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('IPFS add timeout'));
+      }, 30000);
+
+      // Listen for the response
+      const handler = (msg: any) => {
+        if (msg.request_id === requestId) {
+          clearTimeout(timeout);
+          ipfsNode.ws.off('message', handler);
+          if (msg.success) {
+            resolve(msg.cid);
+          } else {
+            reject(new Error(msg.error || 'IPFS add failed'));
+          }
+        }
+      };
+
+      ipfsNode.ws.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          handler(msg);
+        } catch (e) {
+          // Ignore non-JSON messages
+        }
+      });
+
+      // Send the add request
+      ipfsNode.ws.send(JSON.stringify({
+        type: 'ipfs-add-content',
+        request_id: requestId,
+        content,
+        filename: filename || 'untitled',
+      }));
+    });
+
+    const cid = await cidPromise;
+
+    // Calculate size (approximate for base64 or string content)
+    const size = Buffer.byteLength(content, 'utf8');
+
+    // Register the file in the workspace
+    const addResult = workspaceManager.addFile(
+      req.params.id,
+      session.userId,
+      session.username,
+      cid,
+      filename || 'untitled',
+      size,
+      mimeType || 'application/octet-stream'
+    );
+
+    if (!addResult.success) {
+      res.status(400).json({ error: addResult.error });
+      return;
+    }
+
+    res.json({ file: addResult.file, cid });
+  } catch (err: any) {
+    console.error('[Storage] Upload failed:', err);
+    res.status(500).json({ error: err.message || 'Upload failed' });
+  }
+});
+
+// Get file content by CID
+app.get('/api/v1/workspaces/:id/storage/content/:cid', requireAuth, async (req, res) => {
+  const session = (req as any).session;
+  const { cid } = req.params;
+
+  // Verify membership
+  const fileResult = workspaceManager.getFileByCid(req.params.id, cid, session.userId);
+  if (!fileResult.success) {
+    res.status(403).json({ error: fileResult.error });
+    return;
+  }
+
+  // Find an IPFS-enabled node for this workspace
+  const workspaceNodes = nodeManager.getNodesForWorkspace(req.params.id);
+  const ipfsNode = workspaceNodes.find((n) => n.ipfsReady && n.available);
+
+  if (!ipfsNode) {
+    res.status(503).json({ error: 'No IPFS-enabled nodes available in this workspace' });
+    return;
+  }
+
+  try {
+    const requestId = `ipfs-get-${Date.now()}`;
+
+    const contentPromise = new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('IPFS get timeout'));
+      }, 60000);
+
+      const handler = (msg: any) => {
+        if (msg.request_id === requestId) {
+          clearTimeout(timeout);
+          ipfsNode.ws.off('message', handler);
+          if (msg.success) {
+            resolve(msg.content);
+          } else {
+            reject(new Error(msg.error || 'IPFS get failed'));
+          }
+        }
+      };
+
+      ipfsNode.ws.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          handler(msg);
+        } catch (e) {
+          // Ignore non-JSON messages
+        }
+      });
+
+      ipfsNode.ws.send(JSON.stringify({
+        type: 'ipfs-get',
+        request_id: requestId,
+        cid,
+      }));
+    });
+
+    const content = await contentPromise;
+    res.json({ content, file: fileResult.file });
+  } catch (err: any) {
+    console.error('[Storage] Get content failed:', err);
+    res.status(500).json({ error: err.message || 'Failed to retrieve content' });
+  }
+});
+
+// Update file (rename, pin status)
+app.patch('/api/v1/workspaces/:id/storage/files/:fileId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const { name, pinned } = req.body;
+
+  const result = workspaceManager.updateFile(
+    req.params.id,
+    req.params.fileId,
+    session.userId,
+    { name, pinned }
+  );
+
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json({ file: result.file });
+});
+
+// Delete file from workspace
+app.delete('/api/v1/workspaces/:id/storage/files/:fileId', requireAuth, (req, res) => {
+  const session = (req as any).session;
+  const result = workspaceManager.deleteFile(
+    req.params.id,
+    req.params.fileId,
+    session.userId
+  );
+
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json({ success: true });
+});
+
 // ============ Workspace Resource Usage ============
 
 // Get resource usage for a workspace

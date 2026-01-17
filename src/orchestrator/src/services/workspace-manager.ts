@@ -60,6 +60,17 @@ export interface WorkspaceRepo {
   };
 }
 
+export interface StoredFile {
+  id: string;
+  cid: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  addedBy: string;
+  addedAt: string;
+  pinned: boolean;
+}
+
 export interface ResourceUsageEntry {
   id: string;
   flowId?: string;
@@ -92,6 +103,7 @@ export interface Workspace {
   apiKeys: WorkspaceApiKey[];
   flows: WorkspaceFlow[];
   repos: WorkspaceRepo[];
+  files: StoredFile[];
   resourceUsage: WorkspaceResourceUsage;
   createdAt: string;
   // IPFS integration - swarm key for private network isolation
@@ -191,6 +203,7 @@ export class WorkspaceManager {
       apiKeys: [],
       flows: [],
       repos: [],
+      files: [],
       resourceUsage: {
         totalCostCents: 0,
         totalTokens: 0,
@@ -1080,6 +1093,193 @@ export class WorkspaceManager {
     this.saveToDisk();
 
     console.log(`[WorkspaceManager] Deleted repo "${removed.name}" from workspace "${workspace.name}"`);
+
+    return { success: true };
+  }
+
+  // ============ File Management ============
+
+  getFiles(
+    workspaceId: string,
+    userId: string
+  ): { success: boolean; files?: StoredFile[]; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    // Check membership
+    const member = workspace.members.find((m) => m.userId === userId);
+    if (!member) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    return { success: true, files: workspace.files || [] };
+  }
+
+  getFile(
+    workspaceId: string,
+    fileId: string,
+    userId: string
+  ): { success: boolean; file?: StoredFile; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    // Check membership
+    const member = workspace.members.find((m) => m.userId === userId);
+    if (!member) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    const file = (workspace.files || []).find((f) => f.id === fileId);
+    if (!file) {
+      return { success: false, error: 'File not found' };
+    }
+
+    return { success: true, file };
+  }
+
+  getFileByCid(
+    workspaceId: string,
+    cid: string,
+    userId: string
+  ): { success: boolean; file?: StoredFile; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    // Check membership
+    const member = workspace.members.find((m) => m.userId === userId);
+    if (!member) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    const file = (workspace.files || []).find((f) => f.cid === cid);
+    if (!file) {
+      return { success: false, error: 'File not found' };
+    }
+
+    return { success: true, file };
+  }
+
+  addFile(
+    workspaceId: string,
+    userId: string,
+    username: string,
+    cid: string,
+    name: string,
+    size: number,
+    mimeType: string
+  ): { success: boolean; file?: StoredFile; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    // Check membership
+    const member = workspace.members.find((m) => m.userId === userId);
+    if (!member) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    // Initialize files array if not present
+    if (!workspace.files) {
+      workspace.files = [];
+    }
+
+    // Check if CID already exists
+    const existing = workspace.files.find((f) => f.cid === cid);
+    if (existing) {
+      return { success: true, file: existing }; // Return existing file
+    }
+
+    const file: StoredFile = {
+      id: uuidv4(),
+      cid,
+      name,
+      size,
+      mimeType,
+      addedBy: username,
+      addedAt: new Date().toISOString(),
+      pinned: true,
+    };
+
+    workspace.files.push(file);
+    this.saveToDisk();
+
+    console.log(`[WorkspaceManager] Added file "${name}" (${cid}) to workspace "${workspace.name}"`);
+
+    return { success: true, file };
+  }
+
+  updateFile(
+    workspaceId: string,
+    fileId: string,
+    userId: string,
+    updates: Partial<Pick<StoredFile, 'name' | 'pinned'>>
+  ): { success: boolean; file?: StoredFile; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    // Check membership
+    const member = workspace.members.find((m) => m.userId === userId);
+    if (!member) {
+      return { success: false, error: 'Not a member of this workspace' };
+    }
+
+    const file = (workspace.files || []).find((f) => f.id === fileId);
+    if (!file) {
+      return { success: false, error: 'File not found' };
+    }
+
+    if (updates.name !== undefined) file.name = updates.name;
+    if (updates.pinned !== undefined) file.pinned = updates.pinned;
+
+    this.saveToDisk();
+
+    return { success: true, file };
+  }
+
+  deleteFile(
+    workspaceId: string,
+    fileId: string,
+    userId: string
+  ): { success: boolean; error?: string } {
+    const workspace = this.workspaces.get(workspaceId);
+
+    if (!workspace) {
+      return { success: false, error: 'Workspace not found' };
+    }
+
+    // Only owner/admin can delete files
+    const member = workspace.members.find((m) => m.userId === userId);
+    if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
+      return { success: false, error: 'Only workspace owner or admin can delete files' };
+    }
+
+    if (!workspace.files) {
+      return { success: false, error: 'File not found' };
+    }
+
+    const fileIndex = workspace.files.findIndex((f) => f.id === fileId);
+    if (fileIndex === -1) {
+      return { success: false, error: 'File not found' };
+    }
+
+    const removed = workspace.files.splice(fileIndex, 1)[0];
+    this.saveToDisk();
+
+    console.log(`[WorkspaceManager] Deleted file "${removed.name}" from workspace "${workspace.name}"`);
 
     return { success: true };
   }

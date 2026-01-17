@@ -1,5 +1,5 @@
 # OtherThing/RhizOS Cloud - Handoff Document
-**Last Updated**: January 16, 2026 (Session 5 - v1.4.0 Released)
+**Last Updated**: January 16, 2026 (Session 5 - Phase 5 Storage Tab)
 
 ## Project Overview
 **OtherThing** is a workspace-scoped distributed compute platform. Users create workspaces, invite team members, contribute compute resources via native node applications, share API keys, and build/run AI flows collaboratively.
@@ -39,7 +39,7 @@ Workspaces now support adding GitHub repositories for analysis. The system clone
 - `POST /api/v1/workspaces/:id/repos/:repoId/analyze` - Trigger analysis
 - `DELETE /api/v1/workspaces/:id/repos/:repoId` - Delete repo
 
-### IPFS Phases 1-4 COMPLETE
+### IPFS Phases 1-5 COMPLETE
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -47,10 +47,26 @@ Workspaces now support adding GitHub repositories for analysis. The system clone
 | 2 | IPFS Integration (Node App) | ✅ Deployed (v1.4.0) |
 | 3 | Orchestrator Changes | ✅ Deployed |
 | 4 | File Operations API | ✅ Deployed (v1.4.0) |
+| 5 | Dashboard Storage Tab | ✅ Complete (needs deploy) |
+
+**Storage Tab Features:**
+- Upload text content to workspace IPFS
+- List all stored files with metadata (CID, size, date)
+- View file content retrieved from IPFS
+- Delete files from workspace registry
+- Copy CID to clipboard
+
+**Storage API Endpoints:**
+- `GET /api/v1/workspaces/:id/storage/files` - List files
+- `GET /api/v1/workspaces/:id/storage/files/:fileId` - Get file metadata
+- `POST /api/v1/workspaces/:id/storage/upload` - Upload content to IPFS
+- `GET /api/v1/workspaces/:id/storage/content/:cid` - Get file content by CID
+- `PATCH /api/v1/workspaces/:id/storage/files/:fileId` - Update file (rename, pin status)
+- `DELETE /api/v1/workspaces/:id/storage/files/:fileId` - Delete file
 
 ### Next Steps
 
-1. **Phase 5**: Dashboard storage tab (UI for IPFS file operations)
+1. **Deploy Phase 5**: Push changes and rebuild on production server
 2. **HTTPS**: Set up Let's Encrypt for production server
 3. **AI on Nodes**: Install Ollama on workspace GPU nodes for repo analysis
 
@@ -182,7 +198,7 @@ echo 'bAttlezone12a!' | sudo -S systemctl status otherthing --no-pager | head -1
 - [x] Phase 3: Orchestrator Changes
 - [x] Phase 4: File Operations API
 - [x] **Build & release v1.4.0**
-- [ ] Phase 5: Dashboard storage tab
+- [x] Phase 5: Dashboard storage tab
 
 ### Repos
 - [x] Repos tab UI
