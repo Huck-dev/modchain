@@ -115,11 +115,47 @@ interface RepoAnalysis {
     techStack: Array<{ name: string; type: string }>;
     topFiles: Array<{ file: string; changes: number }>;
     security?: { vulnerabilities: Array<{ type: string; file: string; line?: number; description: string }> };
-    deadCode?: { unusedComponents: string[]; unusedExports: string[]; unusedFiles: string[] };
+    deadCode?: {
+      unusedComponents: Array<{ component: string; path: string; confidence?: string; reason?: string }>;
+      unusedExports: Array<{ export: string; file: string; confidence?: string; reason?: string }>;
+      unusedFiles: Array<{ file: string; path: string; confidence?: string; reason?: string }>;
+      notes?: string[];
+    };
     generatedSummary?: string;
     aiSummary?: string;
     aiKeyThings?: string[];
     aiGotchas?: string[];
+    // Enhanced AI data
+    ai?: {
+      summary?: string;
+      projectType?: string;
+      architecture?: {
+        pattern?: string;
+        description?: string;
+        keyDirectories?: string[];
+        dataFlow?: string;
+      };
+      keyThings?: string[];
+      gotchas?: string[];
+      strengths?: string[];
+      codePatterns?: Array<{ name: string; description: string; example?: string }>;
+      quickStart?: {
+        setup?: string[];
+        firstTask?: string;
+        keyFiles?: string[];
+      };
+      onboardingSteps?: Array<{ day: string; title: string; tasks: string[] }>;
+      learningPath?: Array<{ topic: string; why: string; resources: string }>;
+      commonTasks?: Array<{ task: string; howTo: string }>;
+      recommendations?: Array<{ category: string; title: string; description: string; priority: string }>;
+      deadCodeAnalysis?: {
+        overallAssessment?: string;
+        priority?: string;
+        estimatedCleanupEffort?: string;
+        recommendations?: string[];
+      };
+      refactoringOpportunities?: Array<{ area: string; suggestion: string; benefit: string }>;
+    };
   };
 }
 
@@ -1516,6 +1552,263 @@ Members: ${workspace?.members.length || 0}`
                       ))}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* AI Insights Section */}
+              {selectedRepo.data?.ai && (
+                <div style={{ marginTop: 'var(--gap-lg)' }}>
+                  {/* Architecture */}
+                  {selectedRepo.data.ai.architecture && (
+                    <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)' }}>
+                      <div className="cyber-card-header">
+                        <span className="cyber-card-title">🏗️ ARCHITECTURE</span>
+                        {selectedRepo.data.ai.architecture.pattern && (
+                          <span style={{
+                            padding: '2px 8px',
+                            background: 'var(--primary)',
+                            color: 'white',
+                            borderRadius: '4px',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                          }}>
+                            {selectedRepo.data.ai.architecture.pattern}
+                          </span>
+                        )}
+                      </div>
+                      <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                        {selectedRepo.data.ai.architecture.description && (
+                          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--gap-md)', lineHeight: 1.6 }}>
+                            {selectedRepo.data.ai.architecture.description}
+                          </p>
+                        )}
+                        {selectedRepo.data.ai.architecture.dataFlow && (
+                          <div style={{ padding: 'var(--gap-sm)', background: 'var(--bg-void)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--gap-md)' }}>
+                            <strong style={{ color: 'var(--primary)', fontSize: '0.8rem' }}>Data Flow:</strong>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+                              {selectedRepo.data.ai.architecture.dataFlow}
+                            </p>
+                          </div>
+                        )}
+                        {selectedRepo.data.ai.architecture.keyDirectories && selectedRepo.data.ai.architecture.keyDirectories.length > 0 && (
+                          <div>
+                            <strong style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>Key Directories:</strong>
+                            <ul style={{ margin: '8px 0 0 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                              {selectedRepo.data.ai.architecture.keyDirectories.map((d, i) => (
+                                <li key={i} style={{ marginBottom: '4px' }}>{d}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Code Patterns */}
+                  {selectedRepo.data.ai.codePatterns && selectedRepo.data.ai.codePatterns.length > 0 && (
+                    <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)' }}>
+                      <div className="cyber-card-header">
+                        <span className="cyber-card-title">🔮 CODE PATTERNS</span>
+                      </div>
+                      <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                        {selectedRepo.data.ai.codePatterns.map((p, i) => (
+                          <div key={i} style={{
+                            marginBottom: 'var(--gap-md)',
+                            paddingBottom: 'var(--gap-md)',
+                            borderBottom: i < selectedRepo.data!.ai!.codePatterns!.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                          }}>
+                            <strong style={{ color: 'var(--primary)' }}>{p.name}</strong>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0' }}>{p.description}</p>
+                            {p.example && (
+                              <code style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'var(--bg-void)', padding: '2px 6px', borderRadius: '4px' }}>
+                                {p.example}
+                              </code>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Start */}
+                  {selectedRepo.data.ai.quickStart && (
+                    <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)', borderColor: 'var(--success)' }}>
+                      <div className="cyber-card-header">
+                        <span className="cyber-card-title" style={{ color: 'var(--success)' }}>⚡ QUICK START</span>
+                      </div>
+                      <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                        {selectedRepo.data.ai.quickStart.setup && selectedRepo.data.ai.quickStart.setup.length > 0 && (
+                          <div style={{ marginBottom: 'var(--gap-md)' }}>
+                            <strong style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>Setup Steps:</strong>
+                            <ol style={{ margin: '8px 0 0 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                              {selectedRepo.data.ai.quickStart.setup.map((s, i) => (
+                                <li key={i} style={{ marginBottom: '4px' }}>{s}</li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                        {selectedRepo.data.ai.quickStart.firstTask && (
+                          <div style={{ padding: 'var(--gap-sm)', background: 'rgba(34, 197, 94, 0.1)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--gap-md)' }}>
+                            <strong style={{ color: 'var(--success)', fontSize: '0.8rem' }}>🎯 Good First Task:</strong>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+                              {selectedRepo.data.ai.quickStart.firstTask}
+                            </p>
+                          </div>
+                        )}
+                        {selectedRepo.data.ai.quickStart.keyFiles && selectedRepo.data.ai.quickStart.keyFiles.length > 0 && (
+                          <div>
+                            <strong style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>📚 Key Files to Read:</strong>
+                            <ul style={{ margin: '8px 0 0 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                              {selectedRepo.data.ai.quickStart.keyFiles.map((f, i) => (
+                                <li key={i} style={{ marginBottom: '4px' }}>{f}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  {selectedRepo.data.ai.recommendations && selectedRepo.data.ai.recommendations.length > 0 && (
+                    <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)' }}>
+                      <div className="cyber-card-header">
+                        <span className="cyber-card-title">📋 AI RECOMMENDATIONS</span>
+                      </div>
+                      <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                        {selectedRepo.data.ai.recommendations.map((r, i) => (
+                          <div key={i} style={{
+                            display: 'flex',
+                            gap: 'var(--gap-sm)',
+                            marginBottom: 'var(--gap-md)',
+                            paddingBottom: 'var(--gap-md)',
+                            borderBottom: i < selectedRepo.data!.ai!.recommendations!.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                          }}>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.65rem',
+                              fontWeight: 600,
+                              background: r.priority === 'high' ? 'rgba(239, 68, 68, 0.15)' : r.priority === 'medium' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                              color: r.priority === 'high' ? 'var(--error)' : r.priority === 'medium' ? 'var(--warning)' : 'var(--success)',
+                              alignSelf: 'flex-start',
+                            }}>
+                              {r.priority?.toUpperCase()}
+                            </span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)', marginBottom: '4px' }}>
+                                <strong style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>{r.title}</strong>
+                                <span style={{ fontSize: '0.65rem', padding: '2px 6px', background: 'var(--bg-void)', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                                  {r.category}
+                                </span>
+                              </div>
+                              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>{r.description}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Onboarding Timeline */}
+                  {selectedRepo.data.ai.onboardingSteps && selectedRepo.data.ai.onboardingSteps.length > 0 && (
+                    <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)' }}>
+                      <div className="cyber-card-header">
+                        <span className="cyber-card-title">📅 ONBOARDING TIMELINE</span>
+                      </div>
+                      <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                        {selectedRepo.data.ai.onboardingSteps.map((step, i) => (
+                          <div key={i} style={{ marginBottom: 'var(--gap-md)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-sm)', marginBottom: '8px' }}>
+                              <span style={{
+                                padding: '2px 8px',
+                                background: 'var(--primary)',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                              }}>
+                                {step.day}
+                              </span>
+                              <strong style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>{step.title}</strong>
+                            </div>
+                            <ul style={{ margin: '0 0 0 20px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                              {step.tasks.map((t, j) => (
+                                <li key={j} style={{ marginBottom: '4px' }}>{t}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tech Debt Analysis */}
+                  {selectedRepo.data.ai.deadCodeAnalysis && (
+                    <div className="cyber-card" style={{ marginBottom: 'var(--gap-md)', borderColor: 'var(--warning)' }}>
+                      <div className="cyber-card-header">
+                        <span className="cyber-card-title" style={{ color: 'var(--warning)' }}>🧹 TECH DEBT ANALYSIS</span>
+                      </div>
+                      <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                        <div style={{ display: 'flex', gap: 'var(--gap-md)', marginBottom: 'var(--gap-md)' }}>
+                          <div style={{ flex: 1, padding: 'var(--gap-sm)', background: 'var(--bg-void)', borderRadius: 'var(--radius-sm)' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Priority</div>
+                            <div style={{
+                              fontSize: '1rem',
+                              fontWeight: 600,
+                              color: selectedRepo.data.ai.deadCodeAnalysis.priority === 'high' ? 'var(--error)' :
+                                     selectedRepo.data.ai.deadCodeAnalysis.priority === 'medium' ? 'var(--warning)' : 'var(--success)',
+                            }}>
+                              {selectedRepo.data.ai.deadCodeAnalysis.priority?.toUpperCase()}
+                            </div>
+                          </div>
+                          <div style={{ flex: 1, padding: 'var(--gap-sm)', background: 'var(--bg-void)', borderRadius: 'var(--radius-sm)' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Cleanup Effort</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {selectedRepo.data.ai.deadCodeAnalysis.estimatedCleanupEffort}
+                            </div>
+                          </div>
+                        </div>
+                        {selectedRepo.data.ai.deadCodeAnalysis.overallAssessment && (
+                          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 'var(--gap-md)' }}>
+                            {selectedRepo.data.ai.deadCodeAnalysis.overallAssessment}
+                          </p>
+                        )}
+                        {selectedRepo.data.ai.deadCodeAnalysis.recommendations && selectedRepo.data.ai.deadCodeAnalysis.recommendations.length > 0 && (
+                          <div>
+                            <strong style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>Recommendations:</strong>
+                            <ul style={{ margin: '8px 0 0 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                              {selectedRepo.data.ai.deadCodeAnalysis.recommendations.map((r, i) => (
+                                <li key={i} style={{ marginBottom: '4px' }}>{r}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Refactoring Opportunities */}
+                  {selectedRepo.data.ai.refactoringOpportunities && selectedRepo.data.ai.refactoringOpportunities.length > 0 && (
+                    <div className="cyber-card">
+                      <div className="cyber-card-header">
+                        <span className="cyber-card-title">🔄 REFACTORING OPPORTUNITIES</span>
+                      </div>
+                      <div className="cyber-card-body" style={{ padding: 'var(--gap-md)' }}>
+                        {selectedRepo.data.ai.refactoringOpportunities.map((r, i) => (
+                          <div key={i} style={{
+                            marginBottom: 'var(--gap-md)',
+                            paddingBottom: 'var(--gap-md)',
+                            borderBottom: i < selectedRepo.data!.ai!.refactoringOpportunities!.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                          }}>
+                            <strong style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>{r.area}</strong>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '4px 0' }}>{r.suggestion}</p>
+                            <p style={{ color: 'var(--success)', fontSize: '0.75rem', margin: 0 }}>✨ {r.benefit}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
