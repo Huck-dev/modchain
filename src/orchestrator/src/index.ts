@@ -639,7 +639,9 @@ app.get('/api/v1/workspaces/:id/repos', requireAuth, (req, res) => {
     return;
   }
 
-  res.json({ repos: result.repos });
+  // Strip tokens from response for security
+  const reposWithoutTokens = (result.repos || []).map(({ token, ...repo }) => repo);
+  res.json({ repos: reposWithoutTokens });
 });
 
 // Get a specific repo
@@ -652,13 +654,15 @@ app.get('/api/v1/workspaces/:id/repos/:repoId', requireAuth, (req, res) => {
     return;
   }
 
-  res.json({ repo: result.repo });
+  // Strip token from response for security
+  const { token, ...repoWithoutToken } = result.repo || {};
+  res.json({ repo: repoWithoutToken });
 });
 
 // Add a new repo
 app.post('/api/v1/workspaces/:id/repos', requireAuth, (req, res) => {
   const session = (req as any).session;
-  const { url } = req.body;
+  const { url, token } = req.body;
 
   if (!url) {
     res.status(400).json({ error: 'Repository URL is required' });
@@ -669,7 +673,8 @@ app.post('/api/v1/workspaces/:id/repos', requireAuth, (req, res) => {
     req.params.id,
     session.userId,
     url,
-    session.username
+    session.username,
+    token
   );
 
   if (!result.success) {
@@ -677,7 +682,9 @@ app.post('/api/v1/workspaces/:id/repos', requireAuth, (req, res) => {
     return;
   }
 
-  res.status(201).json({ repo: result.repo });
+  // Strip token from response for security
+  const { token: _, ...repoWithoutToken } = result.repo || {};
+  res.status(201).json({ repo: repoWithoutToken });
 });
 
 // Update a repo (status, data, etc.)
@@ -745,8 +752,15 @@ app.post('/api/v1/workspaces/:id/repos/:repoId/analyze', requireAuth, async (req
 
     // Clone the repo if not already cloned
     if (!fs.existsSync(repoPath)) {
+      // Construct authenticated URL if token provided
+      let cloneUrl = repo.url;
+      if (repo.token && repo.url.startsWith('https://')) {
+        // Insert token into HTTPS URL: https://github.com/... -> https://<token>@github.com/...
+        cloneUrl = repo.url.replace('https://', `https://${repo.token}@`);
+      }
+
       await new Promise<void>((resolve, reject) => {
-        const gitClone = spawn('git', ['clone', '--depth', '100', repo.url, repoPath]);
+        const gitClone = spawn('git', ['clone', '--depth', '100', cloneUrl, repoPath]);
         let stderr = '';
         gitClone.stderr.on('data', (data) => { stderr += data.toString(); });
         gitClone.on('close', (code) => {

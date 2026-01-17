@@ -39,6 +39,7 @@ export interface WorkspaceRepo {
   id: string;
   url: string;
   name: string;
+  token?: string; // Personal access token for private repos (not exposed in API responses)
   status: 'pending' | 'cloning' | 'analyzing' | 'ready' | 'error';
   error?: string;
   addedBy: string;
@@ -983,7 +984,8 @@ export class WorkspaceManager {
     workspaceId: string,
     userId: string,
     url: string,
-    username: string
+    username: string,
+    token?: string
   ): { success: boolean; repo?: WorkspaceRepo; error?: string } {
     const workspace = this.workspaces.get(workspaceId);
 
@@ -1013,6 +1015,7 @@ export class WorkspaceManager {
       id: uuidv4(),
       url,
       name: repoName,
+      token: token || undefined,
       status: 'pending',
       addedBy: username,
       addedAt: new Date().toISOString(),

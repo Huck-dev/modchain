@@ -195,6 +195,7 @@ export function WorkspaceDetail() {
   const [repos, setRepos] = useState<RepoAnalysis[]>([]);
   const [showRepoModal, setShowRepoModal] = useState(false);
   const [repoUrl, setRepoUrl] = useState('');
+  const [repoToken, setRepoToken] = useState('');
   const [repoError, setRepoError] = useState<string | null>(null);
   const [analyzingRepo, setAnalyzingRepo] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<RepoAnalysis | null>(null);
@@ -543,13 +544,14 @@ export function WorkspaceDetail() {
       const res = await authFetch(`/api/v1/workspaces/${id}/repos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: repoUrl, name }),
+        body: JSON.stringify({ url: repoUrl, name, token: repoToken || undefined }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setRepos(prev => [...prev, data.repo || newRepo]);
         setRepoUrl('');
+        setRepoToken('');
         setShowRepoModal(false);
         // Trigger analysis
         analyzeRepo(data.repo?.id || newRepo.id);
@@ -2915,6 +2917,27 @@ Members: ${workspace?.members.length || 0}`
                   autoFocus
                 />
               </div>
+              <div style={{ marginBottom: 'var(--gap-lg)' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                }}>
+                  Personal Access Token <span style={{ opacity: 0.6 }}>(optional, for private repos)</span>
+                </label>
+                <input
+                  type="password"
+                  value={repoToken}
+                  onChange={(e) => setRepoToken(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxx"
+                  className="settings-input"
+                />
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Generate at GitHub → Settings → Developer settings → Personal access tokens
+                </p>
+              </div>
               {repoError && (
                 <div style={{
                   display: 'flex',
@@ -2960,6 +2983,7 @@ Members: ${workspace?.members.length || 0}`
                 <CyberButton onClick={() => {
                   setShowRepoModal(false);
                   setRepoUrl('');
+                  setRepoToken('');
                   setRepoError(null);
                 }}>
                   CANCEL
